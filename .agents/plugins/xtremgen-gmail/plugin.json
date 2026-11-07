@@ -1,0 +1,5 @@
+{
+  "name": "xtremgen-gmail",
+  "displayName": "XtremGen Gmail MCP",
+  "description": "Servidor MCP nativo de Gmail (IMAP/SMTP sobre TLS) para leer y enviar correos desde javierbrega@gmail.com."
+}

@@ -92,9 +92,23 @@ XtremGen/
 │   ├── app/
 │   │   ├── globals.css               # Estilos base y scrollbars estilo Opera GX
 │   │   ├── layout.tsx                # Configuración de fuentes y metadatos globales
-│   │   └── page.tsx                  # Vista principal del Hub
-│   └── lib/
-│       └── utils.ts                  # Utilidad cn() (clsx + tailwind-merge)
+│   │   └── page.tsx                  # Orquestador del Hub (Sidebar + Bento + Chat)
+│   ├── components/
+│   │   ├── bento/
+│   │   │   ├── AnimeCharacterSvg.tsx # Arte vectorial original CyberSamurai & NeonRonin
+│   │   │   └── BentoDashboard.tsx    # Grid Bento (grid-cols-12) con arte Out-of-Bounds
+│   │   ├── chat/
+│   │   │   └── CommunityChatSidebar.tsx # Chat en tiempo real colapsable (#general, #drops-xg)
+│   │   └── layout/
+│   │       ├── LeftSidebar.tsx       # Barra lateral izquierda fija estilo Opera GX (#050508)
+│   │       └── TopStatusBar.tsx      # HUD superior con telemetría CPU/RAM/NET y búsqueda
+│   ├── lib/
+│   │   └── utils.ts                  # Utilidad cn() (clsx + tailwind-merge)
+│   └── types/
+│       └── xtremgen.ts               # Contratos TypeScript estrictos del Hub
+├── supabase/
+│   └── migrations/
+│       └── 20261107000000_init_xtremgen_schema.sql # Esquema PostgreSQL + Políticas RLS + Realtime
 ├── gemini.md                         # Reglas de arquitectura y diseño (Always-On)
 ├── tailwind.config.ts                # Tokens de diseño XG
 └── package.json
@@ -132,11 +146,11 @@ Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
 ## 🗺️ Roadmap de Desarrollo (Issues Activos)
 
 - [x] **Fase 0**: Inicialización de Next.js 15, TypeScript estricto, Tailwind CSS y tokens de identidad visual (`#FFD200`, `#E6002B`, `#0A0A0E`).
-- [x] **Fase 1**: Configuración de ecosistema Agentic (Skills de GitHub y Supabase + Servidores MCP).
-- [ ] **Fase 2.1**: [Sidebar Izquierda fija estilo Opera GX (`w-16`/`w-20`)](https://github.com/javierbrega/XtremGen/issues/1) (`#1`)
-- [ ] **Fase 2.2**: [Dashboard Central — Bento Grid (`grid-cols-12`) con arte anime *out-of-bounds*](https://github.com/javierbrega/XtremGen/issues/2) (`#2`)
-- [ ] **Fase 3**: [Sidebar Derecha Colapsable — UI del Chat de la Comunidad](https://github.com/javierbrega/XtremGen/issues/3) (`#3`)
-- [ ] **Fase 4**: [Integración Backend con Supabase Auth, Database RLS & Realtime Chat](https://github.com/javierbrega/XtremGen/issues/4) (`#4`)
+- [x] **Fase 1**: Configuración de ecosistema Agentic (Skills de GitHub, Discord y Supabase + Servidores MCP).
+- [x] **Fase 2.1**: [Sidebar Izquierda fija estilo Opera GX (`w-16`/`w-20`)](https://github.com/javierbrega/XtremGen/issues/1) (`#1`)
+- [x] **Fase 2.2**: [Dashboard Central — Bento Grid (`grid-cols-12`) con arte anime *out-of-bounds*](https://github.com/javierbrega/XtremGen/issues/2) (`#2`)
+- [x] **Fase 3**: [Sidebar Derecha Colapsable — UI del Chat de la Comunidad](https://github.com/javierbrega/XtremGen/issues/3) (`#3`)
+- [ ] **Fase 4**: [Integración Backend con Supabase Auth, Database RLS & Realtime Chat](https://github.com/javierbrega/XtremGen/issues/4) (`#4` — *Migración SQL + RLS completada, lista para despliegue Cloud*)
 
 ---
 

@@ -1,54 +1,139 @@
-import { Zap, Radio, ShieldAlert } from "lucide-react";
+"use client";
 
-export default function HomePage() {
-  return (
-    <main className="min-h-screen bg-xg-bg text-xg-white flex flex-col items-center justify-center p-6">
-      <div className="max-w-2xl w-full bg-xg-contrast border-2 border-xg-yellow p-8 rounded-none shadow-[4px_4px_0px_0px_#E6002B] transition-all hover:shadow-[0_0_20px_rgba(255,210,0,0.45)]">
-        <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-6">
-          <div className="flex items-center gap-2">
-            <Zap className="w-6 h-6 text-xg-yellow fill-xg-yellow" />
-            <span className="font-display text-2xl font-bold tracking-wider uppercase">
-              XTREM<span className="text-xg-red">GEN</span> // XG
-            </span>
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from '../lib/router';
+import { NotificationProvider } from '../context/NotificationContext';
+import { FilterProvider } from '../context/FilterContext';
+import { Navbar } from '../components/Navbar';
+import { CategoryBar } from '../components/CategoryBar';
+import { Hero } from '../components/Hero';
+import { TrendingGames } from '../components/TrendingGames';
+import { ForumFeed } from '../components/ForumFeed';
+import { NewsPage } from '../views/News';
+import { VideosPage } from '../views/Videos';
+import { ReviewsPage } from '../views/Reviews';
+import { ForumPage } from '../views/Forum';
+import { EventsPage } from '../views/Events';
+import { SocialPage } from '../views/SocialPage';
+import { BlogPage, AboutPage } from '../views/MiscPages';
+import { ClanPage } from '../views/ClanPage';
+import { ClanProfile } from '../views/ClanProfile';
+import { ClanAdmin } from '../views/ClanAdmin';
+import { ProHQ } from '../views/ProHQ';
+import { UserProfile } from '../views/UserProfile';
+import { AuthProvider } from '../contexts/AuthContext';
+import { AuthModal } from '../components/auth/AuthModal';
+import { Github, Twitter, Youtube, MessageSquare } from 'lucide-react';
+
+const HomePage = () => (
+  <>
+    <Hero />
+    <TrendingGames />
+    <ForumFeed />
+  </>
+);
+
+const Footer = () => (
+  <footer className="border-t border-border py-20 bg-surface/30">
+    <div className="max-w-7xl mx-auto px-6">
+      <div className="grid md:grid-cols-4 gap-12 mb-16">
+        <div className="col-span-2">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="bg-primary px-3 py-1 rounded-lg">
+              <span className="text-xl font-black text-white tracking-tighter">XG</span>
+            </div>
+            <span className="text-xl font-black tracking-tighter text-white">XTREME<span className="text-primary">GEN</span></span>
           </div>
-          <div className="flex items-center gap-2 bg-xg-sidebar px-3 py-1 border border-xg-neon/40 rounded-none">
-            <span className="w-2.5 h-2.5 bg-xg-neon rounded-none animate-pulse shadow-glow-neon" />
-            <span className="font-mono text-xs uppercase text-xg-neon tracking-widest">
-              SYSTEM ONLINE
-            </span>
+          <p className="text-zinc-400 max-w-sm leading-relaxed mb-8">
+            La plataforma líder para la comunidad gamer de alto rendimiento. 
+            Hardware, software y competencia en un solo ecosistema digital.
+          </p>
+          <div className="flex items-center gap-4">
+            <SocialIcon icon={<Twitter className="w-5 h-5" />} />
+            <SocialIcon icon={<Youtube className="w-5 h-5" />} />
+            <SocialIcon icon={<Github className="w-5 h-5" />} />
+            <SocialIcon icon={<MessageSquare className="w-5 h-5" />} />
           </div>
         </div>
 
-        <h1 className="font-display text-4xl font-bold uppercase tracking-tight mb-3">
-          ESTÁNDARES <span className="text-xg-yellow">ANIME-STREETWEAR</span> INICIALIZADOS
-        </h1>
-        <p className="text-white/75 mb-6 leading-relaxed">
-          Arquitectura Next.js (App Router) + TypeScript estricto + Tailwind CSS preconfigurada según{" "}
-          <code className="font-mono text-xg-yellow bg-xg-sidebar px-1.5 py-0.5 border border-white/10">
-            GEMINI.md
-          </code>
-          .
-        </p>
+        <div>
+          <h4 className="font-bold text-white mb-6 uppercase text-xs tracking-widest">Plataforma</h4>
+          <ul className="space-y-4">
+            <FooterLink label="Noticias" to="/noticias" />
+            <FooterLink label="Reseñas" to="/reseñas" />
+            <FooterLink label="E-sports & Clanes" to="/clan" />
+            <FooterLink label="Foros" to="/foro" />
+          </ul>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono text-xs">
-          <div className="bg-xg-sidebar border border-xg-yellow/50 p-3 rounded-none shadow-[4px_4px_0px_0px_#000]">
-            <div className="text-xg-yellow font-bold mb-1 flex items-center gap-1.5">
-              <Radio className="w-4 h-4" /> ACENTO STREET
-            </div>
-            <div className="text-white/60">#FFD200 // #E6002B</div>
-          </div>
-          <div className="bg-xg-sidebar border border-xg-red/50 p-3 rounded-none shadow-[4px_4px_0px_0px_#000]">
-            <div className="text-xg-red font-bold mb-1 flex items-center gap-1.5">
-              <ShieldAlert className="w-4 h-4" /> GEOMETRÍA
-            </div>
-            <div className="text-white/60">Cortes secos (rounded-none)</div>
-          </div>
-          <div className="bg-xg-sidebar border border-xg-neon/50 p-3 rounded-none shadow-[4px_4px_0px_0px_#000]">
-            <div className="text-xg-neon font-bold mb-1">TIPOGRAFÍA</div>
-            <div className="text-white/60">Chakra Petch + Space Grotesk</div>
-          </div>
+        <div>
+          <h4 className="font-bold text-white mb-6 uppercase text-xs tracking-widest">Compañía</h4>
+          <ul className="space-y-4">
+            <FooterLink label="Sobre Nosotros" to="/acerca" />
+            <FooterLink label="Blog Editorial" to="/blog" />
+            <FooterLink label="Videos" to="/videos" />
+            <FooterLink label="Eventos" to="/eventos" />
+          </ul>
         </div>
       </div>
-    </main>
+
+      <div className="pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-zinc-500 font-medium">
+        <p>© 2026 XtremeGen. Desarrollado sobre AsIstia Framework.</p>
+        <div className="flex items-center gap-6">
+          <a href="#" className="hover:text-primary transition-colors">Status</a>
+          <a href="#" className="hover:text-primary transition-colors">Soporte</a>
+          <a href="#" className="hover:text-primary transition-colors">API</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+);
+
+const FooterLink = ({ label, to }: { label: string; to: string }) => (
+  <li>
+    <Link to={to} className="text-sm text-zinc-500 hover:text-primary transition-colors">{label}</Link>
+  </li>
+);
+
+const SocialIcon = ({ icon }: { icon: React.ReactNode }) => (
+  <a href="#" className="w-10 h-10 rounded-lg glass flex items-center justify-center text-zinc-400 hover:text-primary hover:border-primary/50 transition-all">
+    {icon}
+  </a>
+);
+
+export default function XtremGenHubPage() {
+  return (
+    <AuthProvider>
+      <NotificationProvider>
+        <FilterProvider>
+          <Router>
+            <div className="min-h-screen bg-background selection:bg-primary/30 selection:text-white">
+              <Navbar />
+              <CategoryBar />
+              <main>
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/noticias" element={<NewsPage />} />
+                  <Route path="/videos" element={<VideosPage />} />
+                  <Route path="/reseñas" element={<ReviewsPage />} />
+                  <Route path="/social" element={<SocialPage />} />
+                  <Route path="/clan" element={<ClanPage />} />
+                  <Route path="/clan/:id" element={<ClanProfile />} />
+                  <Route path="/clan/:id/dashboard" element={<ClanAdmin />} />
+                  <Route path="/pro/:id" element={<ProHQ />} />
+                  <Route path="/profile" element={<UserProfile />} />
+                  <Route path="/foro" element={<ForumPage />} />
+                  <Route path="/eventos" element={<EventsPage />} />
+                  <Route path="/blog" element={<BlogPage />} />
+                  <Route path="/acerca" element={<AboutPage />} />
+                </Routes>
+              </main>
+              <Footer />
+            </div>
+            <AuthModal />
+          </Router>
+        </FilterProvider>
+      </NotificationProvider>
+    </AuthProvider>
   );
 }
