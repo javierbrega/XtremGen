@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "<TU_GITHUB_PAT>"
+      }
+    },
+    "discord": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-discord"
+      ],
+      "env": {
+        "DISCORD_BOT_TOKEN": "<TU_DISCORD_BOT_TOKEN>"
+      }
+    }
+  }
+}

@@ -79,8 +79,12 @@ Todos los componentes cumplen estrictamente con los estándares definidos en [`g
 ```text
 XtremGen/
 ├── .agents/                          # Customizaciones para Agentes IA (Antigravity)
-│   ├── plugins/xtremgen-github/      # Plugin MCP de GitHub del proyecto
+│   ├── mcp_config.example.json       # Plantilla de servidores MCP (GitHub + Discord)
+│   ├── plugins/
+│   │   ├── xtremgen-github/          # Plugin MCP de GitHub del proyecto
+│   │   └── xtremgen-discord/         # Plugin MCP de Discord para la comunidad
 │   └── skills/
+│       ├── discord-community/        # Skill de integración y alertas con Discord
 │       ├── github-workflow/          # Skill de flujo Git y Conventional Commits
 │       └── xtremgen-supabase/        # Skill de arquitectura Supabase + RLS + Realtime
 ├── .github/                          # Workflows CI/CD, Dependabot y plantillas de Issues/PRs

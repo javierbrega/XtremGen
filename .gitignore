@@ -27,6 +27,7 @@ yarn-error.log*
 .env
 .agents/mcp_config.json
 .agents/plugins/xtremgen-github/mcp_config.json
+.agents/plugins/xtremgen-discord/mcp_config.json
 
 # vercel
 .vercel
