@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-xg-bg text-xg-white font-sans antialiased selection:bg-xg-yellow selection:text-black;
+  }
+}
+
+/* Custom Scrollbar - Opera GX / Streetwear Style */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050508;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #E6002B;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FFD200;
+}
