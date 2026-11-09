@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, Sparkles, Camera, Loader2, Play, Flame, ThumbsUp, Trophy, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Plus, X, ChevronLeft, ChevronRight, Sparkles, Camera, Loader2, Play, Flame, ThumbsUp, Trophy, Layers } from 'lucide-react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -36,6 +36,14 @@ interface StoryItem {
     username: string;
     avatar_url: string;
   };
+}
+
+interface UserStoryGroup {
+  userId: string;
+  username: string;
+  avatarUrl: string;
+  stories: StoryItem[]; // sorted chronologically (oldest to newest)
+  latestStory: StoryItem;
 }
 
 // Curated seed stories for fresh gaming community launch
@@ -95,7 +103,9 @@ export const StoriesSection: React.FC = () => {
   const { showNotification } = useNotification();
 
   const [stories, setStories] = useState<StoryItem[]>([]);
-  const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
+  const [activeGroupIndex, setActiveGroupIndex] = useState<number | null>(null);
+  const [activeStoryIndexInGroup, setActiveStoryIndexInGroup] = useState<number>(0);
+
   const [isCreatingStory, setIsCreatingStory] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -132,18 +142,105 @@ export const StoriesSection: React.FC = () => {
     loadStories();
   }, [loadStories]);
 
+  // Group stories by User (Instagram / Facebook Stories Model)
+  const storyGroups = useMemo<UserStoryGroup[]>(() => {
+    const map = new Map<string, UserStoryGroup>();
+
+    for (const story of stories) {
+      const uid = story.user_id;
+      const author = story.profiles?.username || 'Gamer';
+      const avatar =
+        story.profiles?.avatar_url ||
+        `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${uid}`;
+
+      if (!map.has(uid)) {
+        map.set(uid, {
+          userId: uid,
+          username: author,
+          avatarUrl: avatar,
+          stories: [story],
+          latestStory: story,
+        });
+      } else {
+        const group = map.get(uid)!;
+        group.stories.push(story);
+      }
+    }
+
+    // Sort stories within each user's group chronologically (oldest to newest)
+    const groups = Array.from(map.values());
+    for (const group of groups) {
+      group.stories.sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      group.latestStory = group.stories[group.stories.length - 1];
+    }
+
+    return groups;
+  }, [stories]);
+
+  const activeGroup = activeGroupIndex !== null ? storyGroups[activeGroupIndex] : null;
+  const currentStory = activeGroup ? activeGroup.stories[activeStoryIndexInGroup] : null;
+
+  // Stable references for navigation to prevent closure bugs
+  const activeGroupIndexRef = useRef(activeGroupIndex);
+  activeGroupIndexRef.current = activeGroupIndex;
+  const activeStoryIndexInGroupRef = useRef(activeStoryIndexInGroup);
+  activeStoryIndexInGroupRef.current = activeStoryIndexInGroup;
+
+  const handleNextStory = useCallback(() => {
+    const gIdx = activeGroupIndexRef.current;
+    const sIdx = activeStoryIndexInGroupRef.current;
+    if (gIdx === null) return;
+    const group = storyGroups[gIdx];
+    if (!group) return;
+
+    if (sIdx < group.stories.length - 1) {
+      // Advance to next story of the same user
+      setActiveStoryIndexInGroup(sIdx + 1);
+      setStoryProgress(0);
+    } else if (gIdx < storyGroups.length - 1) {
+      // Advance to next user
+      setActiveGroupIndex(gIdx + 1);
+      setActiveStoryIndexInGroup(0);
+      setStoryProgress(0);
+    } else {
+      // Finished all stories
+      setActiveGroupIndex(null);
+      setActiveStoryIndexInGroup(0);
+      setStoryProgress(0);
+    }
+  }, [storyGroups]);
+
+  const handlePrevStory = useCallback(() => {
+    const gIdx = activeGroupIndexRef.current;
+    const sIdx = activeStoryIndexInGroupRef.current;
+    if (gIdx === null) return;
+
+    if (sIdx > 0) {
+      // Previous story of the same user
+      setActiveStoryIndexInGroup(sIdx - 1);
+      setStoryProgress(0);
+    } else if (gIdx > 0) {
+      // Previous user
+      const prevGroup = storyGroups[gIdx - 1];
+      setActiveGroupIndex(gIdx - 1);
+      setActiveStoryIndexInGroup(prevGroup ? prevGroup.stories.length - 1 : 0);
+      setStoryProgress(0);
+    }
+  }, [storyGroups]);
+
   // Story auto-advance timer
-  // (Images: 5 seconds, YouTube Shorts / Videos: 30 seconds)
+  // Images: 5 seconds, YouTube Shorts / Videos: 30 seconds
   useEffect(() => {
-    if (activeStoryIndex === null) {
+    if (activeGroupIndex === null || !currentStory) {
       setStoryProgress(0);
       return;
     }
 
     if (isPaused) return;
 
-    const currentStory = stories[activeStoryIndex];
-    const isYouTube = currentStory?.media_type === 'youtube';
+    const isYouTube = currentStory.media_type === 'youtube';
     const totalDuration = isYouTube ? 30000 : 5000;
     const interval = 50; // update every 50ms
     const step = (interval / totalDuration) * 100;
@@ -151,13 +248,8 @@ export const StoriesSection: React.FC = () => {
     timerRef.current = setInterval(() => {
       setStoryProgress((prev) => {
         if (prev >= 100) {
-          if (activeStoryIndex < stories.length - 1) {
-            setActiveStoryIndex((curr) => (curr !== null ? curr + 1 : null));
-            return 0;
-          } else {
-            setActiveStoryIndex(null);
-            return 0;
-          }
+          handleNextStory();
+          return 0;
         }
         return prev + step;
       });
@@ -166,25 +258,7 @@ export const StoriesSection: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [activeStoryIndex, isPaused, stories]);
-
-  const handleNextStory = () => {
-    if (activeStoryIndex === null) return;
-    if (activeStoryIndex < stories.length - 1) {
-      setActiveStoryIndex(activeStoryIndex + 1);
-      setStoryProgress(0);
-    } else {
-      setActiveStoryIndex(null);
-    }
-  };
-
-  const handlePrevStory = () => {
-    if (activeStoryIndex === null) return;
-    if (activeStoryIndex > 0) {
-      setActiveStoryIndex(activeStoryIndex - 1);
-      setStoryProgress(0);
-    }
-  };
+  }, [activeGroupIndex, activeStoryIndexInGroup, isPaused, currentStory, handleNextStory]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -210,7 +284,7 @@ export const StoriesSection: React.FC = () => {
       return;
     }
 
-    // 1. YouTube Short / Video (Zero storage cost)
+    // 1. YouTube Short Mode (Zero storage cost)
     if (creationMode === 'youtube') {
       const ytId = extractYouTubeId(youtubeUrl);
       if (!ytId) {
@@ -245,7 +319,7 @@ export const StoriesSection: React.FC = () => {
         loadStories();
         showNotification({
           title: '¡YouTube Short publicado!',
-          message: 'Tu historia vertical ya está visible para la comunidad sin consumir espacio.',
+          message: 'Tu historia vertical ya está visible y agrupada en tu perfil.',
           type: 'success',
         });
       }
@@ -351,62 +425,85 @@ export const StoriesSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Stories from Users */}
-        {stories.map((s, idx) => {
-          const author = s.profiles?.username || 'Gamer';
-          const avatar =
-            s.profiles?.avatar_url ||
-            `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${s.user_id}`;
-          const isYouTube = s.media_type === 'youtube';
-          const ytId = isYouTube ? extractYouTubeId(s.media_url) : null;
+        {/* Grouped Stories: ONE CARD PER USER */}
+        {storyGroups.map((group, gIdx) => {
+          const displayStory = group.latestStory;
+          const isYouTube = displayStory.media_type === 'youtube';
+          const ytId = isYouTube ? extractYouTubeId(displayStory.media_url) : null;
+          const storyCount = group.stories.length;
 
           return (
             <div
-              key={s.id}
+              key={group.userId}
               onClick={() => {
-                setActiveStoryIndex(idx);
+                setActiveGroupIndex(gIdx);
+                setActiveStoryIndexInGroup(0);
                 setStoryProgress(0);
               }}
               className="relative w-28 sm:w-32 h-44 sm:h-48 rounded-2xl overflow-hidden bg-black border border-white/10 hover:border-primary/80 transition-all duration-300 flex-shrink-0 cursor-pointer group shadow-lg"
             >
-              {/* Background vertical preview */}
+              {/* Background preview */}
               {isYouTube ? (
                 <div className="w-full h-full relative">
                   <img
                     src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
-                    alt={author}
+                    alt={group.username}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     referrerPolicy="no-referrer"
                   />
-                  {/* YouTube Short Badge */}
-                  <div className="absolute top-2.5 right-2.5 px-1.5 py-0.5 rounded-full bg-red-600/90 text-white text-[9px] font-black flex items-center gap-1 shadow-lg backdrop-blur-sm">
-                    <YouTubeIcon className="w-2.5 h-2.5" />
-                    <span>SHORT</span>
+                  {/* Badges in top right */}
+                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
+                    {storyCount > 1 && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-black/80 text-yellow-400 border border-yellow-400/40 text-[9px] font-mono font-black shadow-md flex items-center gap-0.5">
+                        <Layers className="w-2.5 h-2.5" />
+                        {storyCount}
+                      </span>
+                    )}
+                    <span className="px-1.5 py-0.5 rounded-full bg-red-600/90 text-white text-[9px] font-black flex items-center gap-0.5 shadow-lg backdrop-blur-sm">
+                      <YouTubeIcon className="w-2.5 h-2.5" />
+                      SHORT
+                    </span>
                   </div>
                 </div>
-              ) : s.media_type === 'video' ? (
-                <video
-                  src={s.media_url}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  muted
-                />
+              ) : displayStory.media_type === 'video' ? (
+                <div className="w-full h-full relative">
+                  <video
+                    src={displayStory.media_url}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    muted
+                  />
+                  {storyCount > 1 && (
+                    <div className="absolute top-2.5 right-2.5 px-1.5 py-0.5 rounded-full bg-black/80 text-yellow-400 border border-yellow-400/40 text-[9px] font-mono font-black shadow-md flex items-center gap-0.5">
+                      <Layers className="w-2.5 h-2.5" />
+                      {storyCount}
+                    </div>
+                  )}
+                </div>
               ) : (
-                <img
-                  src={s.media_url}
-                  alt={author}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  referrerPolicy="no-referrer"
-                />
+                <div className="w-full h-full relative">
+                  <img
+                    src={displayStory.media_url}
+                    alt={group.username}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    referrerPolicy="no-referrer"
+                  />
+                  {storyCount > 1 && (
+                    <div className="absolute top-2.5 right-2.5 px-1.5 py-0.5 rounded-full bg-black/80 text-yellow-400 border border-yellow-400/40 text-[9px] font-mono font-black shadow-md flex items-center gap-0.5">
+                      <Layers className="w-2.5 h-2.5" />
+                      {storyCount}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Gradient dark overlays */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/40" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/40 pointer-events-none" />
 
               {/* Floating avatar with neon ring */}
               <div className="absolute top-2.5 left-2.5 w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr from-primary to-yellow-500 shadow-md">
                 <img
-                  src={avatar}
-                  alt={author}
+                  src={group.avatarUrl}
+                  alt={group.username}
                   className="w-full h-full rounded-full object-cover border border-black"
                   referrerPolicy="no-referrer"
                 />
@@ -414,12 +511,14 @@ export const StoriesSection: React.FC = () => {
 
               {/* Bottom username and caption preview */}
               <div className="absolute bottom-2 left-2 right-2">
-                <span className="block text-xs font-bold text-white truncate drop-shadow-md">
-                  {author}
-                </span>
-                {s.caption && (
+                <div className="flex items-center justify-between gap-1">
+                  <span className="block text-xs font-bold text-white truncate drop-shadow-md">
+                    {group.username}
+                  </span>
+                </div>
+                {displayStory.caption && (
                   <p className="text-[10px] text-zinc-300 truncate drop-shadow font-medium">
-                    {s.caption}
+                    {displayStory.caption}
                   </p>
                 )}
               </div>
@@ -431,9 +530,9 @@ export const StoriesSection: React.FC = () => {
       {/* ------------------------------------------------------------- */}
       {/* FULLSCREEN VERTICAL STORY VIEWER (Modal)                       */}
       {/* ------------------------------------------------------------- */}
-      {activeStoryIndex !== null && stories[activeStoryIndex] && (
+      {activeGroupIndex !== null && activeGroup && currentStory && (
         <div
-          onClick={() => setActiveStoryIndex(null)}
+          onClick={() => setActiveGroupIndex(null)}
           className="fixed inset-0 z-[400] bg-black/95 backdrop-blur-xl flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200"
         >
           {/* Navigation arrow left */}
@@ -443,8 +542,9 @@ export const StoriesSection: React.FC = () => {
               e.stopPropagation();
               handlePrevStory();
             }}
-            disabled={activeStoryIndex === 0}
+            disabled={activeGroupIndex === 0 && activeStoryIndexInGroup === 0}
             className="hidden sm:flex items-center justify-center w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-20 mr-4 transition-all"
+            title="Anterior"
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
@@ -458,14 +558,32 @@ export const StoriesSection: React.FC = () => {
             onTouchEnd={() => setIsPaused(false)}
             className="relative w-full max-w-[380px] h-[85vh] max-h-[720px] bg-zinc-950 rounded-3xl overflow-hidden border border-white/20 shadow-[0_0_80px_rgba(230,0,43,0.3)] flex flex-col justify-between"
           >
-            {/* Top Header: Progress Bar & Author */}
+            {/* Top Header: Segmented Progress Bars & Author */}
             <div className="relative z-20 p-4 bg-gradient-to-b from-black/80 to-transparent">
-              {/* Animated Progress Bar */}
-              <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden mb-3">
-                <div
-                  className="h-full bg-primary transition-all duration-75 ease-linear"
-                  style={{ width: `${storyProgress}%` }}
-                />
+              {/* Segmented Progress Bars (Instagram / Facebook Stories Model) */}
+              <div className="flex items-center gap-1.5 w-full mb-3">
+                {activeGroup.stories.map((st, sIdx) => {
+                  let widthPct = 0;
+                  if (sIdx < activeStoryIndexInGroup) {
+                    widthPct = 100;
+                  } else if (sIdx === activeStoryIndexInGroup) {
+                    widthPct = storyProgress;
+                  } else {
+                    widthPct = 0;
+                  }
+
+                  return (
+                    <div
+                      key={st.id}
+                      className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden"
+                    >
+                      <div
+                        className="h-full bg-primary transition-all duration-75 ease-linear"
+                        style={{ width: `${widthPct}%` }}
+                      />
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Author Info */}
@@ -473,20 +591,24 @@ export const StoriesSection: React.FC = () => {
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr from-primary to-yellow-500">
                     <img
-                      src={
-                        stories[activeStoryIndex].profiles?.avatar_url ||
-                        `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${stories[activeStoryIndex].user_id}`
-                      }
-                      alt="Avatar"
+                      src={activeGroup.avatarUrl}
+                      alt={activeGroup.username}
                       className="w-full h-full rounded-full object-cover border border-black"
                     />
                   </div>
                   <div>
-                    <span className="font-black text-sm text-white drop-shadow">
-                      {stories[activeStoryIndex].profiles?.username || 'Usuario XG'}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black text-sm text-white drop-shadow">
+                        {activeGroup.username}
+                      </span>
+                      {activeGroup.stories.length > 1 && (
+                        <span className="text-[10px] text-zinc-400 font-mono font-bold">
+                          ({activeStoryIndexInGroup + 1}/{activeGroup.stories.length})
+                        </span>
+                      )}
+                    </div>
                     <span className="block text-[10px] text-zinc-400 font-mono">
-                      {new Date(stories[activeStoryIndex].created_at).toLocaleTimeString([], {
+                      {new Date(currentStory.created_at).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
@@ -495,9 +617,9 @@ export const StoriesSection: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {stories[activeStoryIndex].media_type === 'youtube' && (
+                  {currentStory.media_type === 'youtube' && (
                     <a
-                      href={stories[activeStoryIndex].media_url}
+                      href={currentStory.media_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
@@ -511,7 +633,7 @@ export const StoriesSection: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => setActiveStoryIndex(null)}
+                    onClick={() => setActiveGroupIndex(null)}
                     className="p-1.5 rounded-full bg-black/50 hover:bg-white/20 text-white transition-colors"
                   >
                     <X className="w-5 h-5" />
@@ -522,10 +644,10 @@ export const StoriesSection: React.FC = () => {
 
             {/* Media Content */}
             <div className="absolute inset-0 flex items-center justify-center bg-black">
-              {stories[activeStoryIndex].media_type === 'youtube' ? (
+              {currentStory.media_type === 'youtube' ? (
                 <div className="w-full h-full relative flex items-center justify-center bg-black overflow-hidden">
                   {(() => {
-                    const ytId = extractYouTubeId(stories[activeStoryIndex].media_url);
+                    const ytId = extractYouTubeId(currentStory.media_url);
                     return ytId ? (
                       <iframe
                         src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=0&controls=1&loop=1&playlist=${ytId}&modestbranding=1&rel=0`}
@@ -541,9 +663,9 @@ export const StoriesSection: React.FC = () => {
                     );
                   })()}
                 </div>
-              ) : stories[activeStoryIndex].media_type === 'video' ? (
+              ) : currentStory.media_type === 'video' ? (
                 <video
-                  src={stories[activeStoryIndex].media_url}
+                  src={currentStory.media_url}
                   className="w-full h-full object-cover"
                   autoPlay
                   playsInline
@@ -551,7 +673,7 @@ export const StoriesSection: React.FC = () => {
                 />
               ) : (
                 <img
-                  src={stories[activeStoryIndex].media_url}
+                  src={currentStory.media_url}
                   alt="Story content"
                   className="w-full h-full object-cover"
                 />
@@ -559,7 +681,7 @@ export const StoriesSection: React.FC = () => {
             </div>
 
             {/* Tap areas left / right for mobile story advance (only if not youtube iframe) */}
-            {stories[activeStoryIndex].media_type !== 'youtube' && (
+            {currentStory.media_type !== 'youtube' && (
               <div className="absolute inset-0 z-10 flex">
                 <div
                   className="w-1/2 h-full cursor-pointer"
@@ -580,9 +702,9 @@ export const StoriesSection: React.FC = () => {
 
             {/* Bottom Footer: Caption & Quick Reactions */}
             <div className="relative z-20 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-              {stories[activeStoryIndex].caption && (
+              {currentStory.caption && (
                 <p className="text-sm font-semibold text-white drop-shadow-md mb-3 leading-snug">
-                  {stories[activeStoryIndex].caption}
+                  {currentStory.caption}
                 </p>
               )}
 
@@ -641,8 +763,12 @@ export const StoriesSection: React.FC = () => {
               e.stopPropagation();
               handleNextStory();
             }}
-            disabled={activeStoryIndex === stories.length - 1}
+            disabled={
+              activeGroupIndex === storyGroups.length - 1 &&
+              activeStoryIndexInGroup === activeGroup.stories.length - 1
+            }
             className="hidden sm:flex items-center justify-center w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-20 ml-4 transition-all"
+            title="Siguiente"
           >
             <ChevronRight className="w-6 h-6" />
           </button>
