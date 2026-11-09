@@ -344,15 +344,15 @@ export const SocialPage = () => {
               </div>
             )}
 
-            {/* Bottom Actions Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-white/5">
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            {/* Bottom Actions Bar: Responsive & Clean (Single row on mobile & desktop) */}
+            <div className="flex items-center justify-between gap-1.5 sm:gap-2 pt-2.5 border-t border-white/5">
+              <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1">
                 {/* Photo / Clip Upload */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploadingImage}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/10 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  className="p-2 sm:px-3 sm:py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/10 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0 flex items-center gap-1.5"
                   title="Subir foto o clip al bucket de Supabase"
                 >
                   {isUploadingImage ? (
@@ -360,14 +360,14 @@ export const SocialPage = () => {
                   ) : (
                     <Camera className="w-4 h-4 text-primary" />
                   )}
-                  <span>{selectedFile ? 'Cambiar foto' : 'Foto/Clip'}</span>
+                  <span className="hidden sm:inline">{selectedFile ? 'Cambiar foto' : 'Foto/Clip'}</span>
                 </button>
 
                 {/* Gamer Mood / Sentimiento button */}
                 <button
                   type="button"
                   onClick={() => setShowMoodSelector(!showMoodSelector)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`p-2 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 ${
                     showMoodSelector || selectedMood
                       ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40'
                       : 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10'
@@ -382,7 +382,7 @@ export const SocialPage = () => {
                 <button
                   type="button"
                   onClick={() => setShowUrlInput(!showUrlInput)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  className={`p-2 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0 flex items-center gap-1 ${
                     showUrlInput
                       ? 'bg-primary/20 text-primary border border-primary/40'
                       : 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white'
@@ -397,25 +397,27 @@ export const SocialPage = () => {
                 <select
                   value={gameTag}
                   onChange={(e) => setGameTag(e.target.value)}
-                  className="bg-black/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-primary max-w-[130px] sm:max-w-none"
+                  className="bg-black/60 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] sm:text-xs text-zinc-300 focus:outline-none focus:border-primary max-w-[105px] xs:max-w-[130px] sm:max-w-none truncate shrink min-w-0"
                 >
-                  <option value="Call of Duty: BO7">Call of Duty: BO7</option>
+                  <option value="Call of Duty: BO7">BO7</option>
                   <option value="Valorant">Valorant</option>
-                  <option value="Counter-Strike 2">Counter-Strike 2</option>
-                  <option value="Setup / Hardware">Setup / Hardware</option>
-                  <option value="XtremGen Streetwear">XtremGen Drop</option>
+                  <option value="Counter-Strike 2">CS2</option>
+                  <option value="Setup / Hardware">Setup</option>
+                  <option value="XtremGen Streetwear">XG Drop</option>
                 </select>
               </div>
 
+              {/* Publicar Button */}
               <Button
                 type="submit"
                 variant="primary"
                 size="sm"
                 isLoading={isPublishing}
                 disabled={isUploadingImage}
+                className="shrink-0 px-3 sm:px-4 py-1.5 text-xs font-black uppercase tracking-wider shadow-[0_0_15px_rgba(239,68,68,0.35)]"
               >
                 <Send className="w-3.5 h-3.5" />
-                Publicar
+                <span>Publicar</span>
               </Button>
             </div>
           </form>

@@ -16,10 +16,13 @@ import {
   CheckCircle2,
   Sparkles,
   X,
+  Menu,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase/client';
 import { Button } from './ui/Base';
+import { CATEGORIES } from './CategoryBar';
+import { useFilter } from '../context/FilterContext';
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -93,18 +96,43 @@ export const Navbar = () => {
   const activeTab = allItems.find((item) => item.path === location.pathname)?.id || 'inicio';
   const unreadCount = dbNotifications.filter((n) => !n.read).length;
 
+  const { activeFilter, setActiveFilter } = useFilter();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Close mobile drawer on route navigation
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window.location.hash.includes('menu=true') || window.location.search.includes('menu=true'))) {
+      setIsMobileMenuOpen(true);
+      return;
+    }
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // Lock background scroll when drawer is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileMenuOpen]);
+
   return (
     <>
-      {/* Top Navbar: 100% Clean & Centered */}
+      {/* Top Navbar */}
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           isScrolled
             ? 'bg-[#0c0c10]/95 backdrop-blur-xl border-b border-white/10 py-2.5 shadow-2xl'
-            : 'bg-[#121212]/90 backdrop-blur-md border-b border-white/5 py-3.5'
+            : 'bg-[#121212]/90 backdrop-blur-md border-b border-white/5 py-3'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 flex items-center justify-center">
-          <div className="flex items-center justify-center gap-1 sm:gap-3 md:gap-5 overflow-x-auto no-scrollbar">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8">
+          {/* DESKTOP (md:flex): Clean & Centered Tab Bar */}
+          <div className="hidden md:flex items-center justify-center gap-1 sm:gap-3 md:gap-5 overflow-x-auto no-scrollbar">
             {leftItems.map((item) => (
               <NavItem
                 key={item.id}
@@ -132,8 +160,191 @@ export const Navbar = () => {
               />
             ))}
           </div>
+
+          {/* MOBILE (< md): Brand Logo + Active Route Pill + Hamburger Toggle Button */}
+          <div className="flex md:hidden items-center justify-between">
+            <Link to="/" className="flex items-center gap-2 group">
+              <div className="bg-gradient-to-br from-primary to-red-700 px-2.5 py-1 rounded-lg shadow-md border border-white/15">
+                <span className="text-base font-black text-white tracking-tighter">XG</span>
+              </div>
+              <span className="text-base font-black tracking-tight text-white">
+                XTREME<span className="text-primary">GEN</span>
+              </span>
+            </Link>
+
+            {/* Active Route Pill Indicator */}
+            <div className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-zinc-300 flex items-center gap-1.5 capitalize">
+              <span className="text-primary">{allItems.find((item) => item.id === activeTab)?.icon}</span>
+              <span>{allItems.find((item) => item.id === activeTab)?.label}</span>
+            </div>
+
+            {/* Hamburger Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all active:scale-95 shadow-md flex items-center justify-center"
+              aria-label="Abrir menú de navegación"
+            >
+              {isMobileMenuOpen ? <X className="w-5 h-5 text-primary" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </nav>
+
+      {/* Mobile Hamburger Drawer Menu */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-[999] animate-in fade-in duration-200">
+          {/* Backdrop */}
+          <div
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md"
+          />
+
+          {/* Drawer Panel */}
+          <div className="fixed top-0 right-0 bottom-0 w-[85%] max-w-sm bg-[#0e0e14] border-l border-white/15 p-5 shadow-2xl flex flex-col justify-between overflow-y-auto no-scrollbar z-10 animate-in slide-in-from-right duration-300">
+            <div className="space-y-6">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="bg-primary px-2.5 py-1 rounded-lg">
+                    <span className="text-base font-black text-white">XG</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-black text-white tracking-tight">
+                      XTREME<span className="text-primary">GEN</span>
+                    </span>
+                    <span className="block text-[10px] text-zinc-400 font-mono">Menú Móvil</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-1.5 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* SECTION 1: Navegación Principal (Tab Bar) */}
+              <div>
+                <span className="block text-[10px] font-black uppercase tracking-wider text-zinc-500 mb-2.5">
+                  Secciones de la Plataforma
+                </span>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {allItems.map((item) => {
+                    const isActive = activeTab === item.id;
+                    return (
+                      <Link
+                        key={item.id}
+                        to={item.path}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                          isActive
+                            ? 'bg-primary/20 text-white border border-primary/40 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                            : 'bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white border border-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className={isActive ? 'text-primary' : 'text-zinc-400'}>{item.icon}</span>
+                          <span>{item.label}</span>
+                        </div>
+                        {isActive && (
+                          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SECTION 2: Plataformas & Categorías (Imagen 1) */}
+              <div>
+                <span className="block text-[10px] font-black uppercase tracking-wider text-zinc-500 mb-2.5">
+                  Filtrar por Plataforma / Categoría
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {CATEGORIES.map((cat) => {
+                    const isActive = activeFilter === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveFilter(cat.id);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-tight transition-all border ${
+                          isActive
+                            ? cat.activeColor
+                            : `bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 ${cat.color}`
+                        }`}
+                      >
+                        <span className={isActive ? 'text-inherit' : 'text-zinc-500'}>
+                          {cat.icon}
+                        </span>
+                        <span className="truncate">{cat.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 3: Perfil / Cuenta / Conexión */}
+            <div className="pt-4 border-t border-white/10 mt-6">
+              {profile ? (
+                <div className="space-y-3">
+                  <Link
+                    to="/profile"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-3 p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                  >
+                    <img
+                      src={profile.avatar_url}
+                      alt={profile.username}
+                      className="w-10 h-10 rounded-full object-cover border border-primary/60"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="block font-black text-sm text-white truncate">
+                        {profile.username}
+                      </span>
+                      <span className="block text-[10px] text-emerald-400 font-mono">
+                        ● Conectado
+                      </span>
+                    </div>
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logout();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Cerrar Sesión
+                  </button>
+                </div>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => {
+                    openAuthModal();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Conectar con XtremGen
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom-Left Floating Gaming Capsule (Discord / HUD Style) */}
       <div className="fixed bottom-5 left-5 z-50 flex flex-col items-start">

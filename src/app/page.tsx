@@ -110,7 +110,7 @@ export default function XtremGenHubPage() {
             <div className="min-h-screen bg-background selection:bg-primary/30 selection:text-white">
               <Navbar />
               <CategoryBar />
-              <main>
+              <main className="pt-16 md:pt-0">
                 <Routes>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/noticias" element={<NewsPage />} />
