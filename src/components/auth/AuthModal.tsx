@@ -22,7 +22,7 @@ export const AuthModal = () => {
 
   const handleGoogleSignIn = async () => {
     setIsSubmitting(true);
-    const { error } = await loginWithGoogle(email || 'javierbrega@gmail.com', username || 'JaviXG');
+    const { error } = await loginWithGoogle();
     setIsSubmitting(false);
     if (error) {
       showNotification({
@@ -33,7 +33,7 @@ export const AuthModal = () => {
     } else {
       showNotification({
         title: '¡Conectado con Google!',
-        message: 'Tu sesión y perfil de Google ya están activos en Supabase.',
+        message: 'Redirigiendo a Google o sesión iniciada correctamente.',
         type: 'success',
       });
     }
@@ -41,7 +41,7 @@ export const AuthModal = () => {
 
   const handleDiscordSignIn = async () => {
     setIsSubmitting(true);
-    const { error } = await loginWithDiscord(username || 'javib31');
+    const { error } = await loginWithDiscord();
     setIsSubmitting(false);
     if (error) {
       showNotification({
@@ -52,7 +52,7 @@ export const AuthModal = () => {
     } else {
       showNotification({
         title: '¡Conectado con Discord!',
-        message: 'Tu cuenta de Discord (@javib31) ya está sincronizada en Supabase.',
+        message: 'Redirigiendo a Discord o sesión iniciada correctamente.',
         type: 'success',
       });
     }
@@ -241,7 +241,7 @@ export const AuthModal = () => {
                       required
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      placeholder="Ej: JaviXG"
+                      placeholder="Ej: CyberNinja"
                       className="w-full bg-black/60 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition-colors"
                     />
                   </div>
@@ -275,7 +275,7 @@ export const AuthModal = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="javierbrega@gmail.com"
+                  placeholder="tu-correo@ejemplo.com"
                   className="w-full bg-black/60 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition-colors"
                 />
               </div>

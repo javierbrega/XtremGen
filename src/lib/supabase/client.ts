@@ -46,9 +46,11 @@ function setStoredSession(session: SupabaseSession | null, event = 'SIGNED_IN') 
   authListeners.forEach((cb) => cb(event, session));
 }
 
-// Automatically capture Google OAuth redirect token from URL hash or query on load
+// Automatically capture OAuth redirect token from URL hash or query on load
 if (typeof window !== 'undefined') {
   const hash = window.location.hash;
+  const search = window.location.search;
+
   if (hash && hash.includes('access_token=')) {
     const params = new URLSearchParams(hash.replace(/^#/, ''));
     const accessToken = params.get('access_token');
@@ -67,6 +69,32 @@ if (typeof window !== 'undefined') {
               access_token: accessToken,
               refresh_token: refreshToken,
               user,
+            };
+            setStoredSession(session, 'SIGNED_IN');
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        })
+        .catch(() => {});
+    }
+  } else if (search && search.includes('code=')) {
+    const params = new URLSearchParams(search);
+    const code = params.get('code');
+    if (code) {
+      fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=pkce`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ auth_code: code }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data && data.access_token && data.user) {
+            const session: SupabaseSession = {
+              access_token: data.access_token,
+              refresh_token: data.refresh_token,
+              user: data.user,
             };
             setStoredSession(session, 'SIGNED_IN');
             window.history.replaceState({}, document.title, window.location.pathname);

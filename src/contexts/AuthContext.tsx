@@ -33,8 +33,8 @@ interface AuthContextType {
   session: SupabaseSession | null;
   isPremium: boolean;
   isLoading: boolean;
-  loginWithGoogle: (customEmail?: string, customName?: string) => Promise<{ error: any }>;
-  loginWithDiscord: (customUsername?: string) => Promise<{ error: any }>;
+  loginWithGoogle: () => Promise<{ error: any }>;
+  loginWithDiscord: () => Promise<{ error: any }>;
   loginWithEmail: (email: string, password: string) => Promise<{ error: any }>;
   registerWithEmail: (email: string, password: string, username: string, mainGame?: string) => Promise<{ error: any }>;
   loginWithSpotify: () => void;
@@ -182,138 +182,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [loadUserProfile]);
 
   /**
-   * Smart Google Sign-In:
+   * Google Sign-In via Supabase OAuth:
    * 1. Checks if Google OAuth provider is enabled in Supabase Auth settings.
-   * 2. If enabled, redirects to official Google OAuth.
-   * 3. If not enabled yet in the new Supabase project, performs a real Supabase Auth
-   *    account sign-in/sign-up for the Google account so the user never hits the
-   *    {"code":400,"msg":"Unsupported provider: provider is not enabled"} error.
+   * 2. If enabled, redirects to official Google OAuth screen.
+   * 3. If not enabled, returns an error informing that Google OAuth must be enabled in Supabase.
    */
-  const loginWithGoogle = async (customEmail?: string, customName?: string) => {
+  const loginWithGoogle = async () => {
     const isGoogleEnabled = await checkProviderEnabled('google');
-    if (isGoogleEnabled) {
-      await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+    if (!isGoogleEnabled) {
+      return {
+        error: {
+          message:
+            'El inicio de sesión con Google no está habilitado en la consola de Supabase. Puedes iniciar sesión o registrarte con tu correo y contraseña, o habilitar Google en Supabase Dashboard > Authentication > Providers.',
         },
-      });
-      return { error: null };
+      };
     }
 
-    const targetEmail = (customEmail || 'javierbrega@gmail.com').trim().toLowerCase();
-    const targetName = (customName || targetEmail.split('@')[0] || 'JavierXG').trim();
-    const internalSecret = `XG_GoogleAuth_${targetEmail}_2026!`;
-
-    // Try signing in first
-    const signInRes = await supabase.auth.signInWithPassword({
-      email: targetEmail,
-      password: internalSecret,
-    });
-
-    if (!signInRes.error && signInRes.data?.user) {
-      await loadUserProfile(signInRes.data.user);
-      setIsAuthModalOpen(false);
-      return { error: null };
-    }
-
-    // Otherwise create real Supabase Auth user & profile
-    const signUpRes = await supabase.auth.signUp({
-      email: targetEmail,
-      password: internalSecret,
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
       options: {
-        data: {
-          username: targetName,
-          full_name: targetName,
-          provider: 'google',
-          avatar_url: `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(targetEmail)}`,
-        },
+        redirectTo: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
       },
     });
-
-    if (signUpRes.error) {
-      return { error: signUpRes.error };
-    }
-
-    if (signUpRes.data && !signUpRes.data.session) {
-      const retry = await supabase.auth.signInWithPassword({
-        email: targetEmail,
-        password: internalSecret,
-      });
-      if (retry.data?.user) {
-        await loadUserProfile(retry.data.user);
-        setIsAuthModalOpen(false);
-        return { error: null };
-      }
-    }
-
-    if (signUpRes.data?.user) {
-      await loadUserProfile(signUpRes.data.user);
-      setIsAuthModalOpen(false);
-    }
     return { error: null };
   };
 
-  const loginWithDiscord = async (customUsername?: string) => {
+  /**
+   * Discord Sign-In via Supabase OAuth:
+   * 1. Checks if Discord OAuth provider is enabled in Supabase Auth settings.
+   * 2. If enabled, redirects to official Discord OAuth screen.
+   * 3. If not enabled, returns an error informing that Discord OAuth must be enabled in Supabase.
+   */
+  const loginWithDiscord = async () => {
     const isDiscordEnabled = await checkProviderEnabled('discord');
-    if (isDiscordEnabled) {
-      await supabase.auth.signInWithOAuth({
-        provider: 'discord',
-        options: {
-          redirectTo: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+    if (!isDiscordEnabled) {
+      return {
+        error: {
+          message:
+            'El inicio de sesión con Discord no está habilitado en la consola de Supabase. Puedes iniciar sesión o registrarte con tu correo y contraseña.',
         },
-      });
-      return { error: null };
+      };
     }
 
-    const discordHandle = (customUsername || 'javib31').trim().toLowerCase();
-    const targetEmail = `${discordHandle}@discord.xtremgen.com`;
-    const internalSecret = `XG_DiscordAuth_${discordHandle}_2026!`;
-
-    const signInRes = await supabase.auth.signInWithPassword({
-      email: targetEmail,
-      password: internalSecret,
-    });
-
-    if (!signInRes.error && signInRes.data?.user) {
-      await loadUserProfile(signInRes.data.user);
-      setIsAuthModalOpen(false);
-      return { error: null };
-    }
-
-    const signUpRes = await supabase.auth.signUp({
-      email: targetEmail,
-      password: internalSecret,
+    await supabase.auth.signInWithOAuth({
+      provider: 'discord',
       options: {
-        data: {
-          username: discordHandle,
-          full_name: discordHandle,
-          provider: 'discord',
-          avatar_url: `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${encodeURIComponent(discordHandle)}`,
-        },
+        redirectTo: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
       },
     });
-
-    if (signUpRes.error) {
-      return { error: signUpRes.error };
-    }
-
-    if (signUpRes.data && !signUpRes.data.session) {
-      const retry = await supabase.auth.signInWithPassword({
-        email: targetEmail,
-        password: internalSecret,
-      });
-      if (retry.data?.user) {
-        await loadUserProfile(retry.data.user);
-        setIsAuthModalOpen(false);
-        return { error: null };
-      }
-    }
-
-    if (signUpRes.data?.user) {
-      await loadUserProfile(signUpRes.data.user);
-      setIsAuthModalOpen(false);
-    }
     return { error: null };
   };
 
