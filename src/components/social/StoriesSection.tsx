@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, X, ChevronLeft, ChevronRight, Sparkles, Camera, Loader2, Play, Flame, ThumbsUp, Trophy, Layers } from 'lucide-react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
@@ -105,6 +106,11 @@ export const StoriesSection: React.FC = () => {
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [activeGroupIndex, setActiveGroupIndex] = useState<number | null>(null);
   const [activeStoryIndexInGroup, setActiveStoryIndexInGroup] = useState<number>(0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [isCreatingStory, setIsCreatingStory] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -528,442 +534,480 @@ export const StoriesSection: React.FC = () => {
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* FULLSCREEN VERTICAL STORY VIEWER (Modal)                       */}
+      {/* FULLSCREEN VERTICAL STORY VIEWER (Modal Portal)                */}
       {/* ------------------------------------------------------------- */}
-      {activeGroupIndex !== null && activeGroup && currentStory && (
-        <div
-          onClick={() => setActiveGroupIndex(null)}
-          className="fixed inset-0 z-[400] bg-black/95 backdrop-blur-xl flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200"
-        >
-          {/* Navigation arrow left */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePrevStory();
-            }}
-            disabled={activeGroupIndex === 0 && activeStoryIndexInGroup === 0}
-            className="hidden sm:flex items-center justify-center w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-20 mr-4 transition-all"
-            title="Anterior"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </button>
+      {mounted && activeGroupIndex !== null && activeGroup && currentStory && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              onClick={() => setActiveGroupIndex(null)}
+              className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-xl flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200"
+            >
+              {/* Navigation arrow left */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePrevStory();
+                }}
+                disabled={activeGroupIndex === 0 && activeStoryIndexInGroup === 0}
+                className="hidden sm:flex items-center justify-center w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-20 mr-4 transition-all z-30 shrink-0 shadow-xl"
+                title="Historia anterior"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
 
-          {/* 9:16 Vertical Story Box */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={() => setIsPaused(true)}
-            onMouseUp={() => setIsPaused(false)}
-            onTouchStart={() => setIsPaused(true)}
-            onTouchEnd={() => setIsPaused(false)}
-            className="relative w-full max-w-[380px] h-[85vh] max-h-[720px] bg-zinc-950 rounded-3xl overflow-hidden border border-white/20 shadow-[0_0_80px_rgba(230,0,43,0.3)] flex flex-col justify-between"
-          >
-            {/* Top Header: Segmented Progress Bars & Author */}
-            <div className="relative z-20 p-4 bg-gradient-to-b from-black/80 to-transparent">
-              {/* Segmented Progress Bars (Instagram / Facebook Stories Model) */}
-              <div className="flex items-center gap-1.5 w-full mb-3">
-                {activeGroup.stories.map((st, sIdx) => {
-                  let widthPct = 0;
-                  if (sIdx < activeStoryIndexInGroup) {
-                    widthPct = 100;
-                  } else if (sIdx === activeStoryIndexInGroup) {
-                    widthPct = storyProgress;
-                  } else {
-                    widthPct = 0;
-                  }
+              {/* 9:16 Vertical Story Box */}
+              <div
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={() => setIsPaused(true)}
+                onMouseUp={() => setIsPaused(false)}
+                onTouchStart={() => setIsPaused(true)}
+                onTouchEnd={() => setIsPaused(false)}
+                className="relative w-full max-w-[380px] h-[85vh] max-h-[720px] bg-zinc-950 rounded-3xl overflow-hidden border border-white/20 shadow-[0_0_80px_rgba(230,0,43,0.3)] flex flex-col justify-between"
+              >
+                {/* Top Header: Segmented Progress Bars & Author */}
+                <div className="relative z-20 p-4 bg-gradient-to-b from-black/80 to-transparent">
+                  {/* Segmented Progress Bars (Instagram / Facebook Stories Model) */}
+                  <div className="flex items-center gap-1.5 w-full mb-3">
+                    {activeGroup.stories.map((st, sIdx) => {
+                      let widthPct = 0;
+                      if (sIdx < activeStoryIndexInGroup) {
+                        widthPct = 100;
+                      } else if (sIdx === activeStoryIndexInGroup) {
+                        widthPct = storyProgress;
+                      } else {
+                        widthPct = 0;
+                      }
 
-                  return (
-                    <div
-                      key={st.id}
-                      className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden"
-                    >
-                      <div
-                        className="h-full bg-primary transition-all duration-75 ease-linear"
-                        style={{ width: `${widthPct}%` }}
-                      />
+                      return (
+                        <div
+                          key={st.id}
+                          className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden"
+                        >
+                          <div
+                            className="h-full bg-primary transition-all duration-75 ease-linear"
+                            style={{ width: `${widthPct}%` }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Author Info & Nav Controls */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr from-primary to-yellow-500">
+                        <img
+                          src={activeGroup.avatarUrl}
+                          alt={activeGroup.username}
+                          className="w-full h-full rounded-full object-cover border border-black"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-sm text-white drop-shadow">
+                            {activeGroup.username}
+                          </span>
+                          {activeGroup.stories.length > 1 && (
+                            <span className="text-[10px] text-zinc-400 font-mono font-bold">
+                              ({activeStoryIndexInGroup + 1}/{activeGroup.stories.length})
+                            </span>
+                          )}
+                        </div>
+                        <span className="block text-[10px] text-zinc-400 font-mono">
+                          {new Date(currentStory.created_at).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* Author Info */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr from-primary to-yellow-500">
+                    <div className="flex items-center gap-1.5">
+                      {/* Compact in-card story navigation buttons */}
+                      <div className="flex items-center bg-black/60 border border-white/10 rounded-full p-0.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrevStory();
+                          }}
+                          disabled={activeGroupIndex === 0 && activeStoryIndexInGroup === 0}
+                          className="p-1 rounded-full hover:bg-white/20 text-white disabled:opacity-20 transition-colors"
+                          title="Anterior"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNextStory();
+                          }}
+                          disabled={
+                            activeGroupIndex === storyGroups.length - 1 &&
+                            activeStoryIndexInGroup === activeGroup.stories.length - 1
+                          }
+                          className="p-1 rounded-full hover:bg-white/20 text-white disabled:opacity-20 transition-colors"
+                          title="Siguiente"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {currentStory.media_type === 'youtube' && (
+                        <a
+                          href={currentStory.media_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-600/80 hover:bg-red-600 text-white text-[11px] font-bold transition-colors shadow-md"
+                          title="Abrir en YouTube"
+                        >
+                          <YouTubeIcon className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">YouTube</span>
+                        </a>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveGroupIndex(null)}
+                        className="p-1.5 rounded-full bg-black/50 hover:bg-white/20 text-white transition-colors"
+                        title="Cerrar visor"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Media Content */}
+                <div className="absolute inset-0 flex items-center justify-center bg-black">
+                  {currentStory.media_type === 'youtube' ? (
+                    <div className="w-full h-full relative flex items-center justify-center bg-black overflow-hidden">
+                      {(() => {
+                        const ytId = extractYouTubeId(currentStory.media_url);
+                        return ytId ? (
+                          <iframe
+                            src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=0&controls=1&loop=1&playlist=${ytId}&modestbranding=1&rel=0`}
+                            title="YouTube Short"
+                            className="w-full h-full object-cover rounded-3xl"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        ) : (
+                          <div className="text-center p-4 text-zinc-400 text-xs">
+                            Video no disponible
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : currentStory.media_type === 'video' ? (
+                    <video
+                      src={currentStory.media_url}
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      playsInline
+                      loop
+                    />
+                  ) : (
                     <img
-                      src={activeGroup.avatarUrl}
-                      alt={activeGroup.username}
-                      className="w-full h-full rounded-full object-cover border border-black"
+                      src={currentStory.media_url}
+                      alt="Story content"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
+
+                {/* Tap areas left / right for mobile story advance (only if not youtube iframe) */}
+                {currentStory.media_type !== 'youtube' && (
+                  <div className="absolute inset-0 z-10 flex">
+                    <div
+                      className="w-1/2 h-full cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePrevStory();
+                      }}
+                    />
+                    <div
+                      className="w-1/2 h-full cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleNextStory();
+                      }}
                     />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-black text-sm text-white drop-shadow">
-                        {activeGroup.username}
-                      </span>
-                      {activeGroup.stories.length > 1 && (
-                        <span className="text-[10px] text-zinc-400 font-mono font-bold">
-                          ({activeStoryIndexInGroup + 1}/{activeGroup.stories.length})
-                        </span>
-                      )}
-                    </div>
-                    <span className="block text-[10px] text-zinc-400 font-mono">
-                      {new Date(currentStory.created_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                </div>
+                )}
 
-                <div className="flex items-center gap-2">
-                  {currentStory.media_type === 'youtube' && (
-                    <a
-                      href={currentStory.media_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-600/80 hover:bg-red-600 text-white text-[11px] font-bold transition-colors shadow-md"
-                      title="Abrir en YouTube"
-                    >
-                      <YouTubeIcon className="w-3.5 h-3.5" />
-                      <span>YouTube</span>
-                    </a>
+                {/* Bottom Footer: Caption & Quick Reactions */}
+                <div className="relative z-20 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+                  {currentStory.caption && (
+                    <p className="text-sm font-semibold text-white drop-shadow-md mb-3 leading-snug">
+                      {currentStory.caption}
+                    </p>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => setActiveGroupIndex(null)}
-                    className="p-1.5 rounded-full bg-black/50 hover:bg-white/20 text-white transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                  {/* Quick Story Reaction Chips */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        showNotification({
+                          title: '🔥 Reacción enviada',
+                          message: 'Le enviaste un Fuego a la historia.',
+                          type: 'success',
+                        })
+                      }
+                      className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/10"
+                    >
+                      <Flame className="w-4 h-4 text-orange-400" />
+                      <span>Insano</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        showNotification({
+                          title: '⚡ GG enviado',
+                          message: 'Le diste GG a la historia.',
+                          type: 'success',
+                        })
+                      }
+                      className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/10"
+                    >
+                      <ThumbsUp className="w-4 h-4 text-primary" />
+                      <span>GG</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        showNotification({
+                          title: '🏆 MVP enviado',
+                          message: 'Votaste como MVP a esta jugada.',
+                          type: 'success',
+                        })
+                      }
+                      className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/10"
+                    >
+                      <Trophy className="w-4 h-4 text-yellow-400" />
+                      <span>MVP</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Media Content */}
-            <div className="absolute inset-0 flex items-center justify-center bg-black">
-              {currentStory.media_type === 'youtube' ? (
-                <div className="w-full h-full relative flex items-center justify-center bg-black overflow-hidden">
-                  {(() => {
-                    const ytId = extractYouTubeId(currentStory.media_url);
-                    return ytId ? (
-                      <iframe
-                        src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=0&controls=1&loop=1&playlist=${ytId}&modestbranding=1&rel=0`}
-                        title="YouTube Short"
-                        className="w-full h-full object-cover rounded-3xl"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                    ) : (
-                      <div className="text-center p-4 text-zinc-400 text-xs">
-                        Video no disponible
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : currentStory.media_type === 'video' ? (
-                <video
-                  src={currentStory.media_url}
-                  className="w-full h-full object-cover"
-                  autoPlay
-                  playsInline
-                  loop
-                />
-              ) : (
-                <img
-                  src={currentStory.media_url}
-                  alt="Story content"
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-
-            {/* Tap areas left / right for mobile story advance (only if not youtube iframe) */}
-            {currentStory.media_type !== 'youtube' && (
-              <div className="absolute inset-0 z-10 flex">
-                <div
-                  className="w-1/2 h-full cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePrevStory();
-                  }}
-                />
-                <div
-                  className="w-1/2 h-full cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleNextStory();
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Bottom Footer: Caption & Quick Reactions */}
-            <div className="relative z-20 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-              {currentStory.caption && (
-                <p className="text-sm font-semibold text-white drop-shadow-md mb-3 leading-snug">
-                  {currentStory.caption}
-                </p>
-              )}
-
-              {/* Quick Story Reaction Chips */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    showNotification({
-                      title: '🔥 Reacción enviada',
-                      message: 'Le enviaste un Fuego a la historia.',
-                      type: 'success',
-                    })
-                  }
-                  className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/10"
-                >
-                  <Flame className="w-4 h-4 text-orange-400" />
-                  <span>Insano</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    showNotification({
-                      title: '⚡ GG enviado',
-                      message: 'Le diste GG a la historia.',
-                      type: 'success',
-                    })
-                  }
-                  className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/10"
-                >
-                  <ThumbsUp className="w-4 h-4 text-primary" />
-                  <span>GG</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    showNotification({
-                      title: '🏆 MVP enviado',
-                      message: 'Votaste como MVP a esta jugada.',
-                      type: 'success',
-                    })
-                  }
-                  className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/10"
-                >
-                  <Trophy className="w-4 h-4 text-yellow-400" />
-                  <span>MVP</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Navigation arrow right */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleNextStory();
-            }}
-            disabled={
-              activeGroupIndex === storyGroups.length - 1 &&
-              activeStoryIndexInGroup === activeGroup.stories.length - 1
-            }
-            className="hidden sm:flex items-center justify-center w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-20 ml-4 transition-all"
-            title="Siguiente"
-          >
-            <ChevronRight className="w-6 h-6" />
-          </button>
-        </div>
-      )}
+              {/* Navigation arrow right */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNextStory();
+                }}
+                disabled={
+                  activeGroupIndex === storyGroups.length - 1 &&
+                  activeStoryIndexInGroup === activeGroup.stories.length - 1
+                }
+                className="hidden sm:flex items-center justify-center w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-20 ml-4 transition-all z-30 shrink-0 shadow-xl"
+                title="Siguiente"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
 
       {/* ------------------------------------------------------------- */}
       {/* STORY CREATOR MODAL WITH YOUTUBE SHORT SUPPORT                */}
       {/* ------------------------------------------------------------- */}
-      {isCreatingStory && (
-        <div
-          onClick={() => setIsCreatingStory(false)}
-          className="fixed inset-0 z-[450] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative max-w-md w-full bg-[#111116] border border-white/15 rounded-3xl overflow-hidden shadow-2xl p-6"
-          >
-            <div className="flex items-center justify-between pb-3.5 border-b border-white/10 mb-4">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-primary" />
-                <h3 className="font-black text-lg text-white uppercase tracking-tight">
-                  Crear Historia Vertical
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreatingStory(false)}
-                className="p-1.5 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white"
+      {mounted && isCreatingStory && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              onClick={() => setIsCreatingStory(false)}
+              className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="relative max-w-md w-full bg-[#111116] border border-white/15 rounded-3xl overflow-hidden shadow-2xl p-6"
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Mode Selector Tabs: YouTube Short vs File Upload */}
-            <div className="flex rounded-xl bg-black/60 p-1 border border-white/10 mb-4">
-              <button
-                type="button"
-                onClick={() => setCreationMode('youtube')}
-                className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                  creationMode === 'youtube'
-                    ? 'bg-red-600 text-white shadow-md'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                <YouTubeIcon className="w-4 h-4" />
-                <span>YouTube Short</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setCreationMode('upload')}
-                className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                  creationMode === 'upload'
-                    ? 'bg-primary text-white shadow-md'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                <Camera className="w-4 h-4" />
-                <span>Subir Archivo</span>
-              </button>
-            </div>
-
-            <form onSubmit={handlePublishStory} className="space-y-4">
-              {/* Option A: YouTube Short Mode */}
-              {creationMode === 'youtube' ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
-                      Enlace de YouTube Short o Video
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="url"
-                        value={youtubeUrl}
-                        onChange={(e) => setYoutubeUrl(e.target.value)}
-                        placeholder="https://www.youtube.com/shorts/..."
-                        className="w-full bg-black/60 border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white focus:outline-none focus:border-red-500 transition-colors"
-                      />
-                      {parsedYoutubeId && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 block animate-pulse" />
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-zinc-500 mt-1">
-                      Pega cualquier link (ej: youtube.com/shorts/...). No consume almacenamiento y reproduce al instante.
-                    </p>
+                <div className="flex items-center justify-between pb-3.5 border-b border-white/10 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                    <h3 className="font-black text-lg text-white uppercase tracking-tight">
+                      Crear Historia Vertical
+                    </h3>
                   </div>
-
-                  {/* YouTube Live Thumbnail Preview */}
-                  {parsedYoutubeId && (
-                    <div className="relative w-full h-56 rounded-2xl overflow-hidden bg-black border border-red-500/30 flex items-center justify-center shadow-lg group">
-                      <img
-                        src={`https://img.youtube.com/vi/${parsedYoutubeId}/hqdefault.jpg`}
-                        alt="Preview YouTube Short"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2">
-                        <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center text-white shadow-xl">
-                          <YouTubeIcon className="w-6 h-6" />
-                        </div>
-                        <span className="px-2.5 py-0.5 rounded-full bg-black/80 text-[11px] font-bold text-white border border-white/10">
-                          Short detectado ✓
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingStory(false)}
+                    className="p-1.5 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-              ) : (
-                /* Option B: File Upload Mode */
-                <div className="space-y-3">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*,video/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
 
-                  {storyPreview ? (
-                    <div className="relative w-full h-72 rounded-2xl overflow-hidden bg-black border border-white/20 flex items-center justify-center">
-                      {storyFile?.type.startsWith('video/') ? (
-                        <video src={storyPreview} className="w-full h-full object-cover" autoPlay loop muted />
-                      ) : (
-                        <img src={storyPreview} alt="Preview" className="w-full h-full object-cover" />
+                {/* Mode Selector Tabs: YouTube Short vs File Upload */}
+                <div className="flex rounded-xl bg-black/60 p-1 border border-white/10 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setCreationMode('youtube')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                      creationMode === 'youtube'
+                        ? 'bg-red-600 text-white shadow-md'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <YouTubeIcon className="w-4 h-4" />
+                    <span>YouTube Short</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreationMode('upload')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                      creationMode === 'upload'
+                        ? 'bg-primary text-white shadow-md'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>Subir Archivo</span>
+                  </button>
+                </div>
+
+                <form onSubmit={handlePublishStory} className="space-y-4">
+                  {/* Option A: YouTube Short Mode */}
+                  {creationMode === 'youtube' ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                          Enlace de YouTube Short o Video
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="url"
+                            value={youtubeUrl}
+                            onChange={(e) => setYoutubeUrl(e.target.value)}
+                            placeholder="https://www.youtube.com/shorts/..."
+                            className="w-full bg-black/60 border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white focus:outline-none focus:border-red-500 transition-colors"
+                          />
+                          {parsedYoutubeId && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 block animate-pulse" />
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-zinc-500 mt-1">
+                          Pega cualquier link (ej: youtube.com/shorts/...). No consume almacenamiento y reproduce al instante.
+                        </p>
+                      </div>
+
+                      {/* YouTube Live Thumbnail Preview */}
+                      {parsedYoutubeId && (
+                        <div className="relative w-full h-56 rounded-2xl overflow-hidden bg-black border border-red-500/30 flex items-center justify-center shadow-lg group">
+                          <img
+                            src={`https://img.youtube.com/vi/${parsedYoutubeId}/hqdefault.jpg`}
+                            alt="Preview YouTube Short"
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2">
+                            <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center text-white shadow-xl">
+                              <YouTubeIcon className="w-6 h-6" />
+                            </div>
+                            <span className="px-2.5 py-0.5 rounded-full bg-black/80 text-[11px] font-bold text-white border border-white/10">
+                              Short detectado ✓
+                            </span>
+                          </div>
+                        </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStoryFile(null);
-                          setStoryPreview(null);
-                        }}
-                        className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-black/80 hover:bg-red-600 text-white transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
                     </div>
                   ) : (
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full h-56 rounded-2xl border-2 border-dashed border-white/20 hover:border-primary bg-black/40 flex flex-col items-center justify-center gap-3 cursor-pointer transition-colors p-4 group"
-                    >
-                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                        <Camera className="w-6 h-6" />
-                      </div>
-                      <div className="text-center">
-                        <span className="block text-sm font-bold text-white">Seleccionar Foto o Clip</span>
-                        <span className="block text-xs text-zinc-500 mt-1">Formato vertical 9:16 ideal para móviles</span>
-                      </div>
+                    /* Option B: File Upload Mode */
+                    <div className="space-y-3">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+
+                      {storyPreview ? (
+                        <div className="relative w-full h-72 rounded-2xl overflow-hidden bg-black border border-white/20 flex items-center justify-center">
+                          {storyFile?.type.startsWith('video/') ? (
+                            <video src={storyPreview} className="w-full h-full object-cover" autoPlay loop muted />
+                          ) : (
+                            <img src={storyPreview} alt="Preview" className="w-full h-full object-cover" />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStoryFile(null);
+                              setStoryPreview(null);
+                            }}
+                            className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-black/80 hover:bg-red-600 text-white transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-full h-56 rounded-2xl border-2 border-dashed border-white/20 hover:border-primary bg-black/40 flex flex-col items-center justify-center gap-3 cursor-pointer transition-colors p-4 group"
+                        >
+                          <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                            <Camera className="w-6 h-6" />
+                          </div>
+                          <div className="text-center">
+                            <span className="block text-sm font-bold text-white">Seleccionar Foto o Clip</span>
+                            <span className="block text-xs text-zinc-500 mt-1">Formato vertical 9:16 ideal para móviles</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-              )}
 
-              {/* Caption Input */}
-              <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
-                  Texto o Mensaje (Opcional)
-                </label>
-                <input
-                  type="text"
-                  value={storyCaption}
-                  onChange={(e) => setStoryCaption(e.target.value)}
-                  placeholder="Ej: Rankeando en vivo 🎯"
-                  className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary"
-                />
+                  {/* Caption Input */}
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                      Texto o Mensaje (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={storyCaption}
+                      onChange={(e) => setStoryCaption(e.target.value)}
+                      placeholder="Ej: Rankeando en vivo 🎯"
+                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary"
+                    />
+                  </div>
+
+                  {/* Submit button */}
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="md"
+                    className={`w-full ${creationMode === 'youtube' ? '!bg-red-600 hover:!bg-red-700 !text-white' : ''}`}
+                    isLoading={isUploading}
+                    disabled={
+                      (creationMode === 'youtube' && !parsedYoutubeId) ||
+                      (creationMode === 'upload' && !storyFile) ||
+                      isUploading
+                    }
+                  >
+                    {creationMode === 'youtube' ? (
+                      <span className="flex items-center gap-2">
+                        <YouTubeIcon className="w-4 h-4" />
+                        Publicar YouTube Short
+                      </span>
+                    ) : (
+                      'Publicar Archivo (24h)'
+                    )}
+                  </Button>
+                </form>
               </div>
-
-              {/* Submit button */}
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                className={`w-full ${creationMode === 'youtube' ? '!bg-red-600 hover:!bg-red-700 !text-white' : ''}`}
-                isLoading={isUploading}
-                disabled={
-                  (creationMode === 'youtube' && !parsedYoutubeId) ||
-                  (creationMode === 'upload' && !storyFile) ||
-                  isUploading
-                }
-              >
-                {creationMode === 'youtube' ? (
-                  <span className="flex items-center gap-2">
-                    <YouTubeIcon className="w-4 h-4" />
-                    Publicar YouTube Short
-                  </span>
-                ) : (
-                  'Publicar Archivo (24h)'
-                )}
-              </Button>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 };
