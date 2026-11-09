@@ -75,15 +75,15 @@ create table if not exists public.social_stories (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   media_url text not null,
-  media_type text not null default 'image' check (media_type in ('image', 'video', 'youtube')),
+  media_type text not null default 'image' check (media_type in ('image', 'video', 'youtube', 'live')),
   caption text,
   created_at timestamptz not null default now(),
   expires_at timestamptz not null default (now() + interval '24 hours')
 );
 
--- Asegurar que la restricción permita 'youtube' si la tabla ya existía
+-- Asegurar que la restricción permita 'youtube' y 'live' si la tabla ya existía
 alter table public.social_stories drop constraint if exists social_stories_media_type_check;
-alter table public.social_stories add constraint social_stories_media_type_check check (media_type in ('image', 'video', 'youtube'));
+alter table public.social_stories add constraint social_stories_media_type_check check (media_type in ('image', 'video', 'youtube', 'live'));
 
 alter table public.social_stories enable row level security;
 

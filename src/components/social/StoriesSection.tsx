@@ -2,11 +2,23 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X, ChevronLeft, ChevronRight, Sparkles, Camera, Loader2, Play, Flame, ThumbsUp, Trophy, Layers } from 'lucide-react';
+import {
+  Plus,
+  X,
+  Sparkles,
+  Camera,
+  Layers,
+  Radio,
+  Flame,
+  ThumbsUp,
+  Trophy,
+} from 'lucide-react';
+import { ShortsViewerModal } from './ShortsViewerModal';
+import { LiveStreamModal } from './LiveStreamModal';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
-import { Badge, Button } from '../ui/Base';
+import { Button } from '../ui/Base';
 
 // YouTube Official Vector Icon
 export const YouTubeIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
@@ -26,24 +38,26 @@ export function extractYouTubeId(url: string | undefined | null): string | null 
   return null;
 }
 
-interface StoryItem {
+export interface StoryItem {
   id: string;
   user_id: string;
   media_url: string;
-  media_type: 'image' | 'video' | 'youtube';
+  media_type: 'image' | 'video' | 'youtube' | 'live';
   caption?: string;
   created_at: string;
   profiles?: {
     username: string;
     avatar_url: string;
+    is_pro?: boolean;
+    role_badge?: string;
   };
 }
 
-interface UserStoryGroup {
+export interface UserStoryGroup {
   userId: string;
   username: string;
   avatarUrl: string;
-  stories: StoryItem[]; // sorted chronologically (oldest to newest)
+  stories: StoryItem[];
   latestStory: StoryItem;
 }
 
@@ -104,15 +118,15 @@ export const StoriesSection: React.FC = () => {
   const { showNotification } = useNotification();
 
   const [stories, setStories] = useState<StoryItem[]>([]);
-  const [activeGroupIndex, setActiveGroupIndex] = useState<number | null>(null);
-  const [activeStoryIndexInGroup, setActiveStoryIndexInGroup] = useState<number>(0);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // Shorts Viewer modal state
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [activeGroupIndex, setActiveGroupIndex] = useState<number>(0);
 
+  // Creator & Live Modals state
   const [isCreatingStory, setIsCreatingStory] = useState(false);
+  const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
   // Story Creator mode & state: 'youtube' or 'upload'
@@ -123,12 +137,11 @@ export const StoriesSection: React.FC = () => {
   const [storyCaption, setStoryCaption] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Story Viewer state
-  const [storyProgress, setStoryProgress] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const timerRef = useRef<any>(null);
-
   const parsedYoutubeId = extractYouTubeId(youtubeUrl);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const loadStories = useCallback(async () => {
     const { data } = await supabase
@@ -179,92 +192,20 @@ export const StoriesSection: React.FC = () => {
       group.stories.sort(
         (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
-      group.latestStory = group.stories[group.stories.length - 1];
+      // prioritize live stream if active in group
+      const liveStory = group.stories.find((s) => s.media_type === 'live');
+      group.latestStory = liveStory || group.stories[group.stories.length - 1];
     }
+
+    // Put groups with active LIVE streams first in the carousel!
+    groups.sort((a, b) => {
+      const aLive = a.stories.some((s) => s.media_type === 'live') ? 1 : 0;
+      const bLive = b.stories.some((s) => s.media_type === 'live') ? 1 : 0;
+      return bLive - aLive;
+    });
 
     return groups;
   }, [stories]);
-
-  const activeGroup = activeGroupIndex !== null ? storyGroups[activeGroupIndex] : null;
-  const currentStory = activeGroup ? activeGroup.stories[activeStoryIndexInGroup] : null;
-
-  // Stable references for navigation to prevent closure bugs
-  const activeGroupIndexRef = useRef(activeGroupIndex);
-  activeGroupIndexRef.current = activeGroupIndex;
-  const activeStoryIndexInGroupRef = useRef(activeStoryIndexInGroup);
-  activeStoryIndexInGroupRef.current = activeStoryIndexInGroup;
-
-  const handleNextStory = useCallback(() => {
-    const gIdx = activeGroupIndexRef.current;
-    const sIdx = activeStoryIndexInGroupRef.current;
-    if (gIdx === null) return;
-    const group = storyGroups[gIdx];
-    if (!group) return;
-
-    if (sIdx < group.stories.length - 1) {
-      // Advance to next story of the same user
-      setActiveStoryIndexInGroup(sIdx + 1);
-      setStoryProgress(0);
-    } else if (gIdx < storyGroups.length - 1) {
-      // Advance to next user
-      setActiveGroupIndex(gIdx + 1);
-      setActiveStoryIndexInGroup(0);
-      setStoryProgress(0);
-    } else {
-      // Finished all stories
-      setActiveGroupIndex(null);
-      setActiveStoryIndexInGroup(0);
-      setStoryProgress(0);
-    }
-  }, [storyGroups]);
-
-  const handlePrevStory = useCallback(() => {
-    const gIdx = activeGroupIndexRef.current;
-    const sIdx = activeStoryIndexInGroupRef.current;
-    if (gIdx === null) return;
-
-    if (sIdx > 0) {
-      // Previous story of the same user
-      setActiveStoryIndexInGroup(sIdx - 1);
-      setStoryProgress(0);
-    } else if (gIdx > 0) {
-      // Previous user
-      const prevGroup = storyGroups[gIdx - 1];
-      setActiveGroupIndex(gIdx - 1);
-      setActiveStoryIndexInGroup(prevGroup ? prevGroup.stories.length - 1 : 0);
-      setStoryProgress(0);
-    }
-  }, [storyGroups]);
-
-  // Story auto-advance timer
-  // Images: 5 seconds, YouTube Shorts / Videos: 30 seconds
-  useEffect(() => {
-    if (activeGroupIndex === null || !currentStory) {
-      setStoryProgress(0);
-      return;
-    }
-
-    if (isPaused) return;
-
-    const isYouTube = currentStory.media_type === 'youtube';
-    const totalDuration = isYouTube ? 30000 : 5000;
-    const interval = 50; // update every 50ms
-    const step = (interval / totalDuration) * 100;
-
-    timerRef.current = setInterval(() => {
-      setStoryProgress((prev) => {
-        if (prev >= 100) {
-          handleNextStory();
-          return 0;
-        }
-        return prev + step;
-      });
-    }, interval);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [activeGroupIndex, activeStoryIndexInGroup, isPaused, currentStory, handleNextStory]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -403,7 +344,6 @@ export const StoriesSection: React.FC = () => {
           }}
           className="relative w-28 sm:w-32 h-44 sm:h-48 rounded-2xl overflow-hidden bg-[#16161f] border border-white/10 hover:border-primary/50 transition-all duration-300 flex-shrink-0 cursor-pointer group shadow-lg flex flex-col justify-between"
         >
-          {/* Top half with profile picture */}
           <div className="relative w-full h-[68%] overflow-hidden bg-black/60 flex items-center justify-center">
             {profile?.avatar_url ? (
               <img
@@ -418,15 +358,42 @@ export const StoriesSection: React.FC = () => {
             <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
           </div>
 
-          {/* Plus icon on the divider */}
           <div className="absolute top-[68%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary border-4 border-[#16161f] flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
             <Plus className="w-4 h-4 stroke-[3]" />
           </div>
 
-          {/* Bottom text */}
           <div className="h-[32%] flex items-center justify-center pt-2 pb-1.5 px-2 bg-[#121218]">
             <span className="text-[11px] font-black uppercase tracking-wider text-white text-center leading-tight">
-              Crear Historia
+              Crear Short
+            </span>
+          </div>
+        </div>
+
+        {/* Card 2: Broadcast LIVE Button */}
+        <div
+          onClick={() => {
+            if (!user) {
+              openAuthModal();
+            } else {
+              setIsLiveModalOpen(true);
+            }
+          }}
+          className="relative w-28 sm:w-32 h-44 sm:h-48 rounded-2xl overflow-hidden bg-[#140b0d] border border-red-500/30 hover:border-red-500 transition-all duration-300 flex-shrink-0 cursor-pointer group shadow-lg flex flex-col justify-between"
+        >
+          <div className="relative w-full h-[68%] overflow-hidden bg-black/60 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-red-600/20 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(239,68,68,0.4)]">
+              <Radio className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="absolute inset-0 bg-red-950/20 group-hover:bg-transparent transition-colors" />
+          </div>
+
+          <div className="absolute top-[68%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-red-600 border-4 border-[#140b0d] flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform animate-pulse">
+            <Radio className="w-4 h-4" />
+          </div>
+
+          <div className="h-[32%] flex items-center justify-center pt-2 pb-1.5 px-2 bg-[#12080a]">
+            <span className="text-[11px] font-black uppercase tracking-wider text-red-400 text-center leading-tight flex items-center gap-1">
+              🔴 Emitir VIVO
             </span>
           </div>
         </div>
@@ -435,6 +402,7 @@ export const StoriesSection: React.FC = () => {
         {storyGroups.map((group, gIdx) => {
           const displayStory = group.latestStory;
           const isYouTube = displayStory.media_type === 'youtube';
+          const isLive = group.stories.some((s) => s.media_type === 'live');
           const ytId = isYouTube ? extractYouTubeId(displayStory.media_url) : null;
           const storyCount = group.stories.length;
 
@@ -443,10 +411,13 @@ export const StoriesSection: React.FC = () => {
               key={group.userId}
               onClick={() => {
                 setActiveGroupIndex(gIdx);
-                setActiveStoryIndexInGroup(0);
-                setStoryProgress(0);
+                setIsViewerOpen(true);
               }}
-              className="relative w-28 sm:w-32 h-44 sm:h-48 rounded-2xl overflow-hidden bg-black border border-white/10 hover:border-primary/80 transition-all duration-300 flex-shrink-0 cursor-pointer group shadow-lg"
+              className={`relative w-28 sm:w-32 h-44 sm:h-48 rounded-2xl overflow-hidden bg-black transition-all duration-300 flex-shrink-0 cursor-pointer group shadow-lg ${
+                isLive
+                  ? 'border-2 border-red-500 shadow-[0_0_25px_rgba(239,68,68,0.6)] animate-pulse'
+                  : 'border border-white/10 hover:border-primary/80'
+              }`}
             >
               {/* Background preview */}
               {isYouTube ? (
@@ -469,6 +440,15 @@ export const StoriesSection: React.FC = () => {
                       <YouTubeIcon className="w-2.5 h-2.5" />
                       SHORT
                     </span>
+                  </div>
+                </div>
+              ) : isLive ? (
+                <div className="w-full h-full relative bg-red-950/40 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60" />
+                  <Radio className="w-8 h-8 text-red-500 animate-pulse" />
+                  <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-red-600 text-white font-black text-[9px] uppercase tracking-wider flex items-center gap-1 shadow-lg animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white block" />
+                    LIVE
                   </div>
                 </div>
               ) : displayStory.media_type === 'video' ? (
@@ -506,7 +486,13 @@ export const StoriesSection: React.FC = () => {
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/40 pointer-events-none" />
 
               {/* Floating avatar with neon ring */}
-              <div className="absolute top-2.5 left-2.5 w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr from-primary to-yellow-500 shadow-md">
+              <div
+                className={`absolute top-2.5 left-2.5 w-9 h-9 rounded-full p-[2px] shadow-md ${
+                  isLive
+                    ? 'bg-gradient-to-tr from-red-500 to-yellow-500 animate-pulse'
+                    : 'bg-gradient-to-tr from-primary to-yellow-500'
+                }`}
+              >
                 <img
                   src={group.avatarUrl}
                   alt={group.username}
@@ -517,11 +503,9 @@ export const StoriesSection: React.FC = () => {
 
               {/* Bottom username and caption preview */}
               <div className="absolute bottom-2 left-2 right-2">
-                <div className="flex items-center justify-between gap-1">
-                  <span className="block text-xs font-bold text-white truncate drop-shadow-md">
-                    {group.username}
-                  </span>
-                </div>
+                <span className="block text-xs font-bold text-white truncate drop-shadow-md">
+                  {group.username}
+                </span>
                 {displayStory.caption && (
                   <p className="text-[10px] text-zinc-300 truncate drop-shadow font-medium">
                     {displayStory.caption}
@@ -534,287 +518,25 @@ export const StoriesSection: React.FC = () => {
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* FULLSCREEN VERTICAL STORY VIEWER (Modal Portal)                */}
+      {/* ELEVATED YOUTUBE SHORTS STYLE VIEWER MODAL                    */}
       {/* ------------------------------------------------------------- */}
-      {mounted && activeGroupIndex !== null && activeGroup && currentStory && typeof document !== 'undefined'
-        ? createPortal(
-            <div
-              onClick={() => setActiveGroupIndex(null)}
-              className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-xl flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200"
-            >
-              {/* Navigation arrow left */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePrevStory();
-                }}
-                disabled={activeGroupIndex === 0 && activeStoryIndexInGroup === 0}
-                className="hidden sm:flex items-center justify-center w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-20 mr-4 transition-all z-30 shrink-0 shadow-xl"
-                title="Historia anterior"
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
+      <ShortsViewerModal
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        storyGroups={storyGroups}
+        initialGroupIndex={activeGroupIndex}
+      />
 
-              {/* 9:16 Vertical Story Box */}
-              <div
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={() => setIsPaused(true)}
-                onMouseUp={() => setIsPaused(false)}
-                onTouchStart={() => setIsPaused(true)}
-                onTouchEnd={() => setIsPaused(false)}
-                className="relative w-full max-w-[380px] h-[85vh] max-h-[720px] bg-zinc-950 rounded-3xl overflow-hidden border border-white/20 shadow-[0_0_80px_rgba(230,0,43,0.3)] flex flex-col justify-between"
-              >
-                {/* Top Header: Segmented Progress Bars & Author */}
-                <div className="relative z-20 p-4 bg-gradient-to-b from-black/80 to-transparent">
-                  {/* Segmented Progress Bars (Instagram / Facebook Stories Model) */}
-                  <div className="flex items-center gap-1.5 w-full mb-3">
-                    {activeGroup.stories.map((st, sIdx) => {
-                      let widthPct = 0;
-                      if (sIdx < activeStoryIndexInGroup) {
-                        widthPct = 100;
-                      } else if (sIdx === activeStoryIndexInGroup) {
-                        widthPct = storyProgress;
-                      } else {
-                        widthPct = 0;
-                      }
-
-                      return (
-                        <div
-                          key={st.id}
-                          className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden"
-                        >
-                          <div
-                            className="h-full bg-primary transition-all duration-75 ease-linear"
-                            style={{ width: `${widthPct}%` }}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Author Info & Nav Controls */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr from-primary to-yellow-500">
-                        <img
-                          src={activeGroup.avatarUrl}
-                          alt={activeGroup.username}
-                          className="w-full h-full rounded-full object-cover border border-black"
-                        />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-black text-sm text-white drop-shadow">
-                            {activeGroup.username}
-                          </span>
-                          {activeGroup.stories.length > 1 && (
-                            <span className="text-[10px] text-zinc-400 font-mono font-bold">
-                              ({activeStoryIndexInGroup + 1}/{activeGroup.stories.length})
-                            </span>
-                          )}
-                        </div>
-                        <span className="block text-[10px] text-zinc-400 font-mono">
-                          {new Date(currentStory.created_at).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      {/* Compact in-card story navigation buttons */}
-                      <div className="flex items-center bg-black/60 border border-white/10 rounded-full p-0.5">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePrevStory();
-                          }}
-                          disabled={activeGroupIndex === 0 && activeStoryIndexInGroup === 0}
-                          className="p-1 rounded-full hover:bg-white/20 text-white disabled:opacity-20 transition-colors"
-                          title="Anterior"
-                        >
-                          <ChevronLeft className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleNextStory();
-                          }}
-                          disabled={
-                            activeGroupIndex === storyGroups.length - 1 &&
-                            activeStoryIndexInGroup === activeGroup.stories.length - 1
-                          }
-                          className="p-1 rounded-full hover:bg-white/20 text-white disabled:opacity-20 transition-colors"
-                          title="Siguiente"
-                        >
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      {currentStory.media_type === 'youtube' && (
-                        <a
-                          href={currentStory.media_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-600/80 hover:bg-red-600 text-white text-[11px] font-bold transition-colors shadow-md"
-                          title="Abrir en YouTube"
-                        >
-                          <YouTubeIcon className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">YouTube</span>
-                        </a>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveGroupIndex(null)}
-                        className="p-1.5 rounded-full bg-black/50 hover:bg-white/20 text-white transition-colors"
-                        title="Cerrar visor"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Media Content */}
-                <div className="absolute inset-0 flex items-center justify-center bg-black">
-                  {currentStory.media_type === 'youtube' ? (
-                    <div className="w-full h-full relative flex items-center justify-center bg-black overflow-hidden">
-                      {(() => {
-                        const ytId = extractYouTubeId(currentStory.media_url);
-                        return ytId ? (
-                          <iframe
-                            src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=0&controls=1&loop=1&playlist=${ytId}&modestbranding=1&rel=0`}
-                            title="YouTube Short"
-                            className="w-full h-full object-cover rounded-3xl"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                          />
-                        ) : (
-                          <div className="text-center p-4 text-zinc-400 text-xs">
-                            Video no disponible
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  ) : currentStory.media_type === 'video' ? (
-                    <video
-                      src={currentStory.media_url}
-                      className="w-full h-full object-cover"
-                      autoPlay
-                      playsInline
-                      loop
-                    />
-                  ) : (
-                    <img
-                      src={currentStory.media_url}
-                      alt="Story content"
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                </div>
-
-                {/* Tap areas left / right for mobile story advance (only if not youtube iframe) */}
-                {currentStory.media_type !== 'youtube' && (
-                  <div className="absolute inset-0 z-10 flex">
-                    <div
-                      className="w-1/2 h-full cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePrevStory();
-                      }}
-                    />
-                    <div
-                      className="w-1/2 h-full cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleNextStory();
-                      }}
-                    />
-                  </div>
-                )}
-
-                {/* Bottom Footer: Caption & Quick Reactions */}
-                <div className="relative z-20 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-                  {currentStory.caption && (
-                    <p className="text-sm font-semibold text-white drop-shadow-md mb-3 leading-snug">
-                      {currentStory.caption}
-                    </p>
-                  )}
-
-                  {/* Quick Story Reaction Chips */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        showNotification({
-                          title: '🔥 Reacción enviada',
-                          message: 'Le enviaste un Fuego a la historia.',
-                          type: 'success',
-                        })
-                      }
-                      className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/10"
-                    >
-                      <Flame className="w-4 h-4 text-orange-400" />
-                      <span>Insano</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        showNotification({
-                          title: '⚡ GG enviado',
-                          message: 'Le diste GG a la historia.',
-                          type: 'success',
-                        })
-                      }
-                      className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/10"
-                    >
-                      <ThumbsUp className="w-4 h-4 text-primary" />
-                      <span>GG</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        showNotification({
-                          title: '🏆 MVP enviado',
-                          message: 'Votaste como MVP a esta jugada.',
-                          type: 'success',
-                        })
-                      }
-                      className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-white/10"
-                    >
-                      <Trophy className="w-4 h-4 text-yellow-400" />
-                      <span>MVP</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Navigation arrow right */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleNextStory();
-                }}
-                disabled={
-                  activeGroupIndex === storyGroups.length - 1 &&
-                  activeStoryIndexInGroup === activeGroup.stories.length - 1
-                }
-                className="hidden sm:flex items-center justify-center w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-20 ml-4 transition-all z-30 shrink-0 shadow-xl"
-                title="Siguiente"
-              >
-                <ChevronRight className="w-6 h-6" />
-              </button>
-            </div>,
-            document.body
-          )
-        : null}
+      {/* ------------------------------------------------------------- */}
+      {/* EPHEMERAL ZERO-STORAGE LIVE BROADCASTING MODAL                */}
+      {/* ------------------------------------------------------------- */}
+      <LiveStreamModal
+        isOpen={isLiveModalOpen}
+        onClose={() => setIsLiveModalOpen(false)}
+        onStreamStarted={() => {
+          loadStories();
+        }}
+      />
 
       {/* ------------------------------------------------------------- */}
       {/* STORY CREATOR MODAL WITH YOUTUBE SHORT SUPPORT                */}
