@@ -105,6 +105,96 @@ if (typeof window !== 'undefined') {
   }
 }
 
+function parseJwtPayload(token: string): { exp?: number; [key: string]: any } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const json =
+      typeof window !== 'undefined' && typeof window.atob === 'function'
+        ? window.atob(base64)
+        : Buffer.from(base64, 'base64').toString('utf-8');
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function isTokenExpired(token: string): boolean {
+  const payload = parseJwtPayload(token);
+  if (!payload || typeof payload.exp !== 'number') return false;
+  // Consider expired if less than 60s remain before expiration
+  return payload.exp * 1000 <= Date.now() + 60000;
+}
+
+let refreshPromise: Promise<SupabaseSession | null> | null = null;
+
+export async function refreshSession(): Promise<SupabaseSession | null> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const session = getStoredSession();
+    if (!session?.refresh_token) {
+      setStoredSession(null, 'SIGNED_OUT');
+      return null;
+    }
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: session.refresh_token }),
+      });
+
+      if (!res.ok) {
+        setStoredSession(null, 'SIGNED_OUT');
+        return null;
+      }
+
+      const data = await res.json();
+      if (data && data.access_token) {
+        const newSession: SupabaseSession = {
+          access_token: data.access_token,
+          refresh_token: data.refresh_token || session.refresh_token,
+          expires_at: data.expires_at,
+          user: data.user || session.user,
+        };
+        setStoredSession(newSession, 'TOKEN_REFRESHED');
+        return newSession;
+      }
+
+      setStoredSession(null, 'SIGNED_OUT');
+      return null;
+    } catch {
+      return session;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+export async function ensureValidSession(): Promise<SupabaseSession | null> {
+  const session = getStoredSession();
+  if (!session) return null;
+
+  if (session.access_token && isTokenExpired(session.access_token)) {
+    if (session.refresh_token) {
+      return await refreshSession();
+    } else {
+      setStoredSession(null, 'SIGNED_OUT');
+      return null;
+    }
+  }
+
+  return session;
+}
+
 function getHeaders(useAuth = true, prefer?: string): Record<string, string> {
   const session = getStoredSession();
   const token = useAuth && session?.access_token ? session.access_token : SUPABASE_ANON_KEY;
@@ -200,14 +290,26 @@ class QueryBuilder<T = any> {
 
   async execute(): Promise<{ data: T | null; error: any }> {
     try {
+      const session = await ensureValidSession();
       const url = `${SUPABASE_URL}/rest/v1/${this.table}?${this.params.toString()}`;
       const prefer =
         this.method === 'POST' || this.method === 'PATCH' ? 'return=representation' : undefined;
-      const res = await fetch(url, {
+      let res = await fetch(url, {
         method: this.method,
         headers: getHeaders(true, prefer),
         body: this.bodyData ? JSON.stringify(this.bodyData) : undefined,
       });
+
+      if (res.status === 401 && session?.refresh_token) {
+        const refreshed = await refreshSession();
+        if (refreshed?.access_token) {
+          res = await fetch(url, {
+            method: this.method,
+            headers: getHeaders(true, prefer),
+            body: this.bodyData ? JSON.stringify(this.bodyData) : undefined,
+          });
+        }
+      }
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: res.statusText }));
@@ -243,9 +345,9 @@ export const supabase = {
   from: <T = any>(table: string) => new QueryBuilder<T>(table),
   auth: {
     getSession: async () => {
-      const session = getStoredSession();
+      const session = await ensureValidSession();
       if (!session) return { data: { session: null }, error: null };
-      // Verify user token is still valid
+      // Verify user token is still valid with Supabase Auth
       try {
         const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
           headers: {
@@ -254,6 +356,12 @@ export const supabase = {
           },
         });
         if (!res.ok) {
+          if (session.refresh_token) {
+            const refreshed = await refreshSession();
+            if (refreshed) {
+              return { data: { session: refreshed }, error: null };
+            }
+          }
           setStoredSession(null, 'SIGNED_OUT');
           return { data: { session: null }, error: null };
         }
@@ -263,6 +371,14 @@ export const supabase = {
       } catch {
         return { data: { session }, error: null };
       }
+    },
+
+    refreshSession: async () => {
+      const refreshed = await refreshSession();
+      return {
+        data: { session: refreshed },
+        error: refreshed ? null : { message: 'No se pudo renovar la sesión.' },
+      };
     },
 
     signUp: async ({
@@ -369,8 +485,8 @@ export const supabase = {
         file: File | Blob,
         options?: { contentType?: string; upsert?: boolean }
       ) => {
-        const session = getStoredSession();
-        const token = session?.access_token || SUPABASE_ANON_KEY;
+        let session = await ensureValidSession();
+        let token = session?.access_token || SUPABASE_ANON_KEY;
         const cleanPath = path.replace(/^\/+/, '');
         const url = `${SUPABASE_URL}/storage/v1/object/${bucket}/${cleanPath}`;
 
@@ -379,23 +495,54 @@ export const supabase = {
           (file instanceof File ? file.type : 'application/octet-stream') ||
           'image/jpeg';
 
-        const headers: Record<string, string> = {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${token}`,
-          'Content-Type': contentType,
+        const buildHeaders = (authToken: string) => {
+          const h: Record<string, string> = {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': contentType,
+          };
+          if (options?.upsert) {
+            h['x-upsert'] = 'true';
+          }
+          return h;
         };
-        if (options?.upsert) {
-          headers['x-upsert'] = 'true';
-        }
 
-        const res = await fetch(url, {
+        let res = await fetch(url, {
           method: 'POST',
-          headers,
+          headers: buildHeaders(token),
           body: file,
         });
 
+        // If rejected due to expired token (401 or "exp" check failed), attempt refresh and retry once
+        if (res.status === 401 && session?.refresh_token) {
+          const refreshed = await refreshSession();
+          if (refreshed?.access_token) {
+            token = refreshed.access_token;
+            res = await fetch(url, {
+              method: 'POST',
+              headers: buildHeaders(token),
+              body: file,
+            });
+          }
+        }
+
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
+          const rawMsg = data?.message || data?.error || '';
+          if (
+            typeof rawMsg === 'string' &&
+            (rawMsg.includes('exp') || rawMsg.includes('timestamp') || res.status === 401)
+          ) {
+            setStoredSession(null, 'SIGNED_OUT');
+            return {
+              data: null,
+              error: {
+                ...data,
+                message:
+                  'Tu sesión ha expirado. Por favor, vuelve a iniciar sesión para continuar.',
+              },
+            };
+          }
           return { data: null, error: data };
         }
         return { data: { path: cleanPath, ...data }, error: null };
@@ -408,9 +555,11 @@ export const supabase = {
       },
 
       remove: async (paths: string[]) => {
-        const session = getStoredSession();
-        const token = session?.access_token || SUPABASE_ANON_KEY;
-        const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}`, {
+        let session = await ensureValidSession();
+        let token = session?.access_token || SUPABASE_ANON_KEY;
+        const url = `${SUPABASE_URL}/storage/v1/object/${bucket}`;
+
+        let res = await fetch(url, {
           method: 'DELETE',
           headers: {
             apikey: SUPABASE_ANON_KEY,
@@ -419,6 +568,23 @@ export const supabase = {
           },
           body: JSON.stringify({ prefixes: paths }),
         });
+
+        if (res.status === 401 && session?.refresh_token) {
+          const refreshed = await refreshSession();
+          if (refreshed?.access_token) {
+            token = refreshed.access_token;
+            res = await fetch(url, {
+              method: 'DELETE',
+              headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ prefixes: paths }),
+            });
+          }
+        }
+
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { data: null, error: data };
         return { data, error: null };

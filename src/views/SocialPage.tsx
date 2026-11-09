@@ -172,11 +172,21 @@ export const SocialPage = () => {
 
       if (uploadError) {
         setIsPublishing(false);
+        const isAuthError =
+          uploadError.message?.includes('sesión') ||
+          uploadError.message?.includes('exp') ||
+          uploadError.message?.includes('timestamp') ||
+          uploadError.message?.includes('Unauthorized');
         showNotification({
-          title: 'Error al subir imagen',
-          message: uploadError.message || 'No se pudo subir la imagen al bucket de Supabase.',
+          title: isAuthError ? 'Sesión expirada' : 'Error al subir imagen',
+          message: isAuthError
+            ? 'Tu sesión de Supabase ha caducado. Vuelve a iniciar sesión para continuar.'
+            : uploadError.message || 'No se pudo subir la imagen al bucket de Supabase.',
           type: 'error',
         });
+        if (isAuthError) {
+          openAuthModal();
+        }
         return;
       }
 

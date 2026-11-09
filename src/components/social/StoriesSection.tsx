@@ -298,11 +298,21 @@ export const StoriesSection: React.FC = () => {
 
     if (uploadError) {
       setIsUploading(false);
+      const isAuthError =
+        uploadError.message?.includes('sesión') ||
+        uploadError.message?.includes('exp') ||
+        uploadError.message?.includes('timestamp') ||
+        uploadError.message?.includes('Unauthorized');
       showNotification({
-        title: 'Error al subir archivo',
-        message: uploadError.message || 'No se pudo subir el archivo de historia.',
+        title: isAuthError ? 'Sesión expirada' : 'Error al subir archivo',
+        message: isAuthError
+          ? 'Tu sesión de Supabase ha caducado. Vuelve a iniciar sesión para continuar.'
+          : uploadError.message || 'No se pudo subir el archivo de historia.',
         type: 'error',
       });
+      if (isAuthError) {
+        openAuthModal();
+      }
       return;
     }
 
