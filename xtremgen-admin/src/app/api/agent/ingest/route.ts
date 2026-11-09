@@ -278,6 +278,22 @@ async function fetchIgdbTwitchDrafts(
 
 export async function POST(req: NextRequest) {
   try {
+    // Security: Validate secret admin key or Bearer token
+    const adminKey =
+      req.headers.get("x-admin-key") ||
+      req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    const expectedSecret =
+      process.env.ADMIN_INGEST_SECRET ||
+      process.env.NEXT_PUBLIC_ADMIN_INGEST_SECRET ||
+      "xg_sec_agent_ingest_2026!";
+
+    if (!adminKey || adminKey !== expectedSecret) {
+      return NextResponse.json(
+        { ok: false, error: "No autorizado: x-admin-key inválido o faltante." },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const requestedProvider: string = body.provider || "all";
 

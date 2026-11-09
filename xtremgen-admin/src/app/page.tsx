@@ -179,7 +179,12 @@ export default function XGAdminDashboard() {
     try {
       const res = await fetch("/api/agent/ingest", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key":
+            process.env.NEXT_PUBLIC_ADMIN_INGEST_SECRET ||
+            "xg_sec_agent_ingest_2026!",
+        },
         body: JSON.stringify({ provider }),
       });
       const data = await res.json();
