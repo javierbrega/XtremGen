@@ -1,13 +1,51 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Play, Send, Sparkles, Image as ImageIcon, MessageSquare } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, Play, Send, Sparkles, Image as ImageIcon, MessageSquare, Camera, X, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { Badge, Button, Card } from '../components/ui/Base';
 import { SocialLayout } from '../components/social/SocialLayout';
 import { ReactionButtons } from '../components/social/ReactionButtons';
 import { supabase } from '../lib/supabase/client';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+
+async function compressImage(file: File, maxWidth = 1280, quality = 0.85): Promise<Blob> {
+  return new Promise((resolve) => {
+    if (file.type === 'image/svg+xml' || file.type === 'image/gif') {
+      return resolve(file);
+    }
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let width = img.width;
+      let height = img.height;
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(file);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          resolve(blob || file);
+        },
+        'image/webp',
+        quality
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file);
+    };
+    img.src = objectUrl;
+  });
+}
 
 export const SocialPage = () => {
   const [posts, setPosts] = useState<any[]>([]);
@@ -16,8 +54,14 @@ export const SocialPage = () => {
 
   const [content, setContent] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
   const [gameTag, setGameTag] = useState('Call of Duty: BO7');
   const [isPublishing, setIsPublishing] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { user, profile, openAuthModal } = useAuth();
   const { showNotification } = useNotification();
@@ -42,19 +86,90 @@ export const SocialPage = () => {
     loadSocialFeed();
   }, [loadSocialFeed]);
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showNotification({
+        title: 'Formato no soportado',
+        message: 'Por favor selecciona un archivo de imagen (PNG, JPG, WEBP, GIF).',
+        type: 'error',
+      });
+      return;
+    }
+
+    try {
+      setIsUploadingImage(true);
+      const compressed = await compressImage(file);
+      const optimizedFile = new File(
+        [compressed],
+        file.name.replace(/\.[^/.]+$/, '') + '.webp',
+        { type: 'image/webp' }
+      );
+      setSelectedFile(optimizedFile);
+      setPreviewUrl(URL.createObjectURL(compressed));
+      setMediaUrl('');
+    } catch {
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleClearImage = () => {
+    setSelectedFile(null);
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
       openAuthModal();
       return;
     }
-    if (!content.trim()) return;
+    if (!content.trim() && !selectedFile && !mediaUrl.trim()) return;
 
     setIsPublishing(true);
+    let finalMediaUrl: string | null = mediaUrl.trim() || null;
+
+    if (selectedFile) {
+      const ext = selectedFile.type === 'image/webp' ? 'webp' : selectedFile.name.split('.').pop() || 'jpg';
+      const cleanFileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const filePath = `${user.id}/${cleanFileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('social-media')
+        .upload(filePath, selectedFile, {
+          contentType: selectedFile.type,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        setIsPublishing(false);
+        showNotification({
+          title: 'Error al subir imagen',
+          message: uploadError.message || 'No se pudo subir la imagen al bucket de Supabase.',
+          type: 'error',
+        });
+        return;
+      }
+
+      const { data: urlData } = supabase.storage.from('social-media').getPublicUrl(filePath);
+      finalMediaUrl = urlData.publicUrl;
+    }
+
     const { error } = await supabase.from('social_posts').insert({
       author_id: user.id,
       content: content.trim(),
-      media_url: mediaUrl.trim() || null,
+      media_url: finalMediaUrl,
       game_tag: gameTag,
     });
     setIsPublishing(false);
@@ -67,7 +182,9 @@ export const SocialPage = () => {
       });
     } else {
       setContent('');
+      handleClearImage();
       setMediaUrl('');
+      setShowUrlInput(false);
       loadSocialFeed();
       showNotification({
         title: '¡Publicado en XG Social!',
@@ -157,33 +274,109 @@ export const SocialPage = () => {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="relative">
+            {/* Image Preview with Remove Button */}
+            {previewUrl && (
+              <div className="relative rounded-xl overflow-hidden border border-white/20 bg-black/60 max-h-72 w-full group">
+                <img
+                  src={previewUrl}
+                  alt="Previsualización"
+                  className="w-full h-full object-cover max-h-72 rounded-xl"
+                />
+                <button
+                  type="button"
+                  onClick={handleClearImage}
+                  className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-black/80 hover:bg-red-600 text-white transition-all shadow-lg"
+                  title="Quitar imagen"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/75 text-[10px] font-mono text-emerald-400 border border-emerald-500/30">
+                  ✓ Imagen optimizada para Supabase
+                </div>
+              </div>
+            )}
+
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+
+            {/* Optional URL input if toggled */}
+            {showUrlInput && (
+              <div className="relative animate-in fade-in duration-150">
                 <ImageIcon className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="url"
                   value={mediaUrl}
-                  onChange={(e) => setMediaUrl(e.target.value)}
-                  placeholder="URL de Imagen / Clip (opcional)"
+                  onChange={(e) => {
+                    setMediaUrl(e.target.value);
+                    if (e.target.value.trim()) {
+                      handleClearImage();
+                    }
+                  }}
+                  placeholder="Pegar URL de Imagen / GIF / Clip..."
                   className="w-full bg-black/50 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-primary"
                 />
               </div>
-              <select
-                value={gameTag}
-                onChange={(e) => setGameTag(e.target.value)}
-                className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-primary"
-              >
-                <option value="Call of Duty: BO7">Call of Duty: BO7</option>
-                <option value="Valorant">Valorant</option>
-                <option value="Counter-Strike 2">Counter-Strike 2</option>
-                <option value="Setup / Hardware">Setup / Hardware</option>
-              </select>
-            </div>
+            )}
 
-            <div className="flex justify-end">
-              <Button type="submit" variant="primary" size="sm" isLoading={isPublishing}>
+            {/* Bottom Actions Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingImage}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/10 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  title="Subir foto desde tu dispositivo al bucket de Supabase"
+                >
+                  {isUploadingImage ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  ) : (
+                    <Camera className="w-4 h-4 text-primary" />
+                  )}
+                  <span>{selectedFile ? 'Cambiar foto' : 'Subir foto'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowUrlInput(!showUrlInput)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    showUrlInput
+                      ? 'bg-primary/20 text-primary border border-primary/40'
+                      : 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white'
+                  }`}
+                  title="Pegar enlace web"
+                >
+                  <LinkIcon className="w-3.5 h-3.5" />
+                  <span>Enlace</span>
+                </button>
+
+                <select
+                  value={gameTag}
+                  onChange={(e) => setGameTag(e.target.value)}
+                  className="bg-black/50 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-primary"
+                >
+                  <option value="Call of Duty: BO7">Call of Duty: BO7</option>
+                  <option value="Valorant">Valorant</option>
+                  <option value="Counter-Strike 2">Counter-Strike 2</option>
+                  <option value="Setup / Hardware">Setup / Hardware</option>
+                </select>
+              </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isPublishing}
+                disabled={isUploadingImage}
+              >
                 <Send className="w-3.5 h-3.5" />
-                Publicar en Social
+                Publicar
               </Button>
             </div>
           </form>

@@ -341,4 +341,68 @@ export const supabase = {
       };
     },
   },
+
+  storage: {
+    from: (bucket: string) => ({
+      upload: async (
+        path: string,
+        file: File | Blob,
+        options?: { contentType?: string; upsert?: boolean }
+      ) => {
+        const session = getStoredSession();
+        const token = session?.access_token || SUPABASE_ANON_KEY;
+        const cleanPath = path.replace(/^\/+/, '');
+        const url = `${SUPABASE_URL}/storage/v1/object/${bucket}/${cleanPath}`;
+
+        const contentType =
+          options?.contentType ||
+          (file instanceof File ? file.type : 'application/octet-stream') ||
+          'image/jpeg';
+
+        const headers: Record<string, string> = {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+          'Content-Type': contentType,
+        };
+        if (options?.upsert) {
+          headers['x-upsert'] = 'true';
+        }
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: file,
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          return { data: null, error: data };
+        }
+        return { data: { path: cleanPath, ...data }, error: null };
+      },
+
+      getPublicUrl: (path: string) => {
+        const cleanPath = path.replace(/^\/+/, '');
+        const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${cleanPath}`;
+        return { data: { publicUrl } };
+      },
+
+      remove: async (paths: string[]) => {
+        const session = getStoredSession();
+        const token = session?.access_token || SUPABASE_ANON_KEY;
+        const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}`, {
+          method: 'DELETE',
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prefixes: paths }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { data: null, error: data };
+        return { data, error: null };
+      },
+    }),
+  },
 };
