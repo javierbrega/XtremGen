@@ -117,6 +117,7 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
   const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef<any>(null);
+  const touchStartY = useRef<number | null>(null);
 
   // Sync state when props change
   useEffect(() => {
@@ -201,6 +202,26 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
         handlePrevStory();
       }
     }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    setIsPaused(true);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    setIsPaused(false);
+    if (touchStartY.current !== null) {
+      const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+      if (Math.abs(deltaY) > 50) {
+        if (deltaY < 0) {
+          handleNextStory();
+        } else {
+          handlePrevStory();
+        }
+      }
+    }
+    touchStartY.current = null;
   };
 
   // Timer auto-advance (YouTube Shorts: 30s, Images: 6s)
@@ -308,20 +329,154 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
 
   const isFirstStoryOverall = groupIndex === 0 && storyIndex === 0;
   const isLastStoryOverall =
+    Boolean(activeGroup) &&
     groupIndex === storyGroups.length - 1 &&
-    storyIndex === activeGroup.stories.length - 1;
+    storyIndex === (activeGroup?.stories.length ?? 1) - 1;
+
+  // Shared Action Buttons Renderer (Overlay inside video on mobile, column beside video on desktop)
+  const renderActionButtons = (isOverlay = false) => (
+    <div
+      className={
+        isOverlay
+          ? "sm:hidden absolute right-2.5 bottom-12 flex flex-col items-center gap-2.5 z-40 select-none"
+          : "hidden sm:flex flex-col items-center gap-3.5 z-40 select-none"
+      }
+    >
+      {/* Reaction 1: Flame / Like */}
+      <div className="flex flex-col items-center gap-0.5 sm:gap-1">
+        <motion.button
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={handleToggleLike}
+          className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all shadow-xl backdrop-blur-md border ${
+            hasLiked
+              ? 'bg-orange-500/25 border-orange-500 text-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.4)]'
+              : 'bg-black/60 sm:bg-white/10 hover:bg-white/20 border-white/20 sm:border-white/15 text-white'
+          }`}
+          title="Fuego / Me gusta"
+        >
+          <Flame className={`w-5 h-5 sm:w-6 sm:h-6 ${hasLiked ? 'fill-orange-400 text-orange-400' : ''}`} />
+        </motion.button>
+        <span className="text-[10px] sm:text-xs font-bold text-white drop-shadow">
+          {likes}
+        </span>
+      </div>
+
+      {/* Reaction 2: GG */}
+      <div className="flex flex-col items-center gap-0.5 sm:gap-1">
+        <motion.button
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={handleToggleGg}
+          className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all shadow-xl backdrop-blur-md border ${
+            hasGg
+              ? 'bg-primary/25 border-primary text-primary shadow-[0_0_20px_rgba(230,0,43,0.4)]'
+              : 'bg-black/60 sm:bg-white/10 hover:bg-white/20 border-white/20 sm:border-white/15 text-white'
+          }`}
+          title="GG (Bien jugado)"
+        >
+          <ThumbsUp className={`w-4 h-4 sm:w-5 sm:h-5 ${hasGg ? 'fill-primary text-primary' : ''}`} />
+        </motion.button>
+        <span className="text-[10px] sm:text-xs font-bold text-white drop-shadow">
+          {ggs}
+        </span>
+      </div>
+
+      {/* Reaction 3: MVP */}
+      <div className="flex flex-col items-center gap-0.5 sm:gap-1">
+        <motion.button
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={handleToggleMvp}
+          className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all shadow-xl backdrop-blur-md border ${
+            hasMvp
+              ? 'bg-yellow-500/25 border-yellow-500 text-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.4)]'
+              : 'bg-black/60 sm:bg-white/10 hover:bg-white/20 border-white/20 sm:border-white/15 text-white'
+          }`}
+          title="MVP (Jugada destacada)"
+        >
+          <Trophy className={`w-4 h-4 sm:w-5 sm:h-5 ${hasMvp ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+        </motion.button>
+        <span className="text-[10px] sm:text-xs font-bold text-white drop-shadow">
+          {mvps}
+        </span>
+      </div>
+
+      {/* Comments Toggle Button */}
+      <div className="flex flex-col items-center gap-0.5 sm:gap-1">
+        <motion.button
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsCommentsOpen(!isCommentsOpen)}
+          className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all shadow-xl backdrop-blur-md border ${
+            isCommentsOpen
+              ? 'bg-white text-black border-white'
+              : 'bg-black/60 sm:bg-white/10 hover:bg-white/20 border-white/20 sm:border-white/15 text-white'
+          }`}
+          title="Comentarios en vivo"
+        >
+          <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+        </motion.button>
+        <span className="text-[10px] sm:text-xs font-bold text-white drop-shadow">
+          {comments.length}
+        </span>
+      </div>
+
+      {/* Share Button */}
+      <div className="flex flex-col items-center gap-0.5 sm:gap-1">
+        <motion.button
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={handleShare}
+          className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center bg-black/60 sm:bg-white/10 hover:bg-white/20 border border-white/20 sm:border-white/15 text-white transition-all shadow-xl backdrop-blur-md"
+          title="Compartir Short"
+        >
+          {copied ? <Check className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" /> : <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />}
+        </motion.button>
+        <span className="text-[9px] sm:text-[10px] font-bold text-zinc-300">
+          {copied ? 'Copiado' : 'Compartir'}
+        </span>
+      </div>
+
+      <div className="w-6 sm:w-8 h-[1px] bg-white/20 my-0.5 sm:my-1" />
+
+      {/* Vertical Navigation: Previous Short (↑) */}
+      <motion.button
+        whileHover={{ scale: 1.15 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={handlePrevStory}
+        disabled={isFirstStoryOverall}
+        className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center bg-black/60 sm:bg-white/10 hover:bg-white/25 border border-white/20 sm:border-white/15 text-white disabled:opacity-20 transition-all shadow-xl backdrop-blur-md"
+        title="Short anterior (Flecha Arriba ↑)"
+      >
+        <ChevronUp className="w-5 h-5 sm:w-6 sm:h-6" />
+      </motion.button>
+
+      {/* Vertical Navigation: Next Short (↓) */}
+      <motion.button
+        whileHover={{ scale: 1.15 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={handleNextStory}
+        disabled={isLastStoryOverall}
+        className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center bg-black/60 sm:bg-white/10 hover:bg-white/25 border border-white/20 sm:border-white/15 text-white disabled:opacity-20 transition-all shadow-xl backdrop-blur-md"
+        title="Siguiente Short (Flecha Abajo ↓)"
+      >
+        <ChevronDown className="w-5 h-5 sm:w-6 sm:h-6" />
+      </motion.button>
+    </div>
+  );
 
   const content = (
     <div
       onClick={onClose}
       onWheel={handleWheel}
-      className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-2 sm:p-4 select-none animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] bg-black sm:bg-black/95 sm:backdrop-blur-2xl flex items-center justify-center p-0 sm:p-4 select-none animate-in fade-in duration-200"
     >
-      {/* Floating Close Button in Top Right */}
+      {/* Floating Close Button in Top Right (Desktop) */}
       <button
         type="button"
         onClick={onClose}
-        className="fixed top-5 right-5 sm:top-7 sm:right-7 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md z-[100] transition-all hover:scale-110 active:scale-95 shadow-xl border border-white/10"
+        className="hidden sm:flex fixed top-5 right-5 sm:top-7 sm:right-7 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md z-[100] transition-all hover:scale-110 active:scale-95 shadow-xl border border-white/10"
         title="Cerrar visor (Esc)"
       >
         <X className="w-6 h-6" />
@@ -330,7 +485,7 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
       {/* Main Container: Video + Right Action Sidebar + Sliding Comments Panel */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative flex items-center justify-center gap-3 sm:gap-4 max-h-[92vh] max-w-full"
+        className="relative flex items-center justify-center gap-3 sm:gap-4 w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-full"
       >
         {/* ------------------------------------------------------------- */}
         {/* 1. 9:16 VERTICAL SHORTS PLAYER                                */}
@@ -338,13 +493,13 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
         <div
           onMouseDown={() => setIsPaused(true)}
           onMouseUp={() => setIsPaused(false)}
-          onTouchStart={() => setIsPaused(true)}
-          onTouchEnd={() => setIsPaused(false)}
-          className="relative w-[340px] xs:w-[380px] sm:w-[410px] h-[85vh] sm:h-[88vh] max-h-[820px] bg-black rounded-3xl overflow-hidden border border-white/15 shadow-[0_0_80px_rgba(230,0,43,0.25)] flex flex-col justify-between"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="relative w-full h-[100dvh] sm:w-[410px] sm:h-[88vh] sm:max-h-[820px] bg-black sm:rounded-3xl overflow-hidden sm:border sm:border-white/15 shadow-[0_0_80px_rgba(230,0,43,0.25)] flex flex-col justify-between"
         >
           {/* Top Segmented Progress Bars */}
-          <div className="relative z-30 px-4 pt-3.5 pb-2 bg-gradient-to-b from-black/85 via-black/40 to-transparent">
-            <div className="flex items-center gap-1.5 w-full mb-2.5">
+          <div className="relative z-30 px-3.5 sm:px-4 pt-3 sm:pt-3.5 pb-2 bg-gradient-to-b from-black/90 via-black/50 to-transparent">
+            <div className="flex items-center gap-1.5 w-full mb-2 sm:mb-2.5">
               {activeGroup.stories.map((st, idx) => {
                 let widthPct = 0;
                 if (idx < storyIndex) widthPct = 100;
@@ -367,17 +522,17 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
 
             {/* Author Header */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr from-primary to-yellow-500 shadow-md">
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full p-[2px] bg-gradient-to-tr from-primary to-yellow-500 shadow-md">
                   <img
                     src={activeGroup.avatarUrl}
-                    alt={activeGroup.username}
+                    alt=""
                     className="w-full h-full rounded-full object-cover border border-black"
                   />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-black text-sm text-white drop-shadow">
+                    <span className="font-black text-xs sm:text-sm text-white drop-shadow">
                       {activeGroup.username}
                     </span>
                     {activeGroup.stories.length > 1 && (
@@ -392,7 +547,7 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
                       </span>
                     )}
                   </div>
-                  <span className="block text-[10px] text-zinc-400 font-mono">
+                  <span className="block text-[9px] sm:text-[10px] text-zinc-400 font-mono">
                     {new Date(currentStory.created_at).toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit',
@@ -401,20 +556,31 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
                 </div>
               </div>
 
-              {/* YouTube external badge if applicable */}
-              {currentStory.media_type === 'youtube' && (
-                <a
-                  href={currentStory.media_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold transition-all shadow-md active:scale-95"
-                  title="Abrir en YouTube oficial"
+              {/* Controls (YouTube link + Mobile Close Button) */}
+              <div className="flex items-center gap-2">
+                {currentStory.media_type === 'youtube' && (
+                  <a
+                    href={currentStory.media_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-600 hover:bg-red-700 text-white text-[10px] sm:text-[11px] font-bold transition-all shadow-md active:scale-95"
+                    title="Abrir en YouTube oficial"
+                  >
+                    <YouTubeIcon className="w-3.5 h-3.5" />
+                    <span className="hidden xs:inline">YouTube</span>
+                  </a>
+                )}
+                {/* Mobile Close Button (Direct thumb access) */}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="sm:hidden p-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md transition-all active:scale-95"
+                  title="Cerrar visor"
                 >
-                  <YouTubeIcon className="w-3.5 h-3.5" />
-                  <span className="hidden xs:inline">YouTube</span>
-                </a>
-              )}
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -426,7 +592,7 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
                   <iframe
                     src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=0&controls=1&loop=1&playlist=${ytId}&modestbranding=1&rel=0`}
                     title="YouTube Short"
-                    className="w-full h-full object-cover rounded-3xl"
+                    className="w-full h-full object-cover"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                   />
@@ -478,14 +644,14 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
           {currentStory.media_type !== 'youtube' && (
             <div className="absolute inset-0 z-10 flex">
               <div
-                className="w-1/2 h-full cursor-pointer"
+                className="w-1/3 h-full cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   handlePrevStory();
                 }}
               />
               <div
-                className="w-1/2 h-full cursor-pointer"
+                className="w-2/3 h-full cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleNextStory();
@@ -494,21 +660,24 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
             </div>
           )}
 
-          {/* Bottom Video Information Overlay */}
-          <div className="relative z-30 p-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-none">
+          {/* MOBILE IN-VIDEO ACTION OVERLAY (Bottom-Right) */}
+          {renderActionButtons(true)}
+
+          {/* Bottom Video Information Overlay (Leaves room for right action column on mobile) */}
+          <div className="relative z-30 p-3.5 sm:p-4 pr-16 sm:pr-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-none">
             {/* Title / Caption */}
             {currentStory.caption && (
-              <p className="text-sm font-semibold text-white drop-shadow-md mb-2 leading-snug line-clamp-2">
+              <p className="text-xs sm:text-sm font-semibold text-white drop-shadow-md mb-1.5 sm:mb-2 leading-snug line-clamp-2">
                 {currentStory.caption}
               </p>
             )}
 
             {/* Game / Tag Badge */}
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-[11px] font-bold text-yellow-300">
+              <span className="px-2 py-0.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-[10px] sm:text-[11px] font-bold text-yellow-300">
                 🎮 Gaming Drop
               </span>
-              <span className="text-[11px] text-zinc-400 font-mono">
+              <span className="text-[10px] sm:text-[11px] text-zinc-400 font-mono">
                 XtremGen Shorts
               </span>
             </div>
@@ -516,134 +685,12 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
         </div>
 
         {/* ------------------------------------------------------------- */}
-        {/* 2. RIGHT-SIDE FLOATING ACTION BAR (YouTube Shorts Style)      */}
+        {/* 2. DESKTOP RIGHT-SIDE FLOATING ACTION BAR                     */}
         {/* ------------------------------------------------------------- */}
-        <div className="flex flex-col items-center gap-3.5 z-40 select-none">
-          {/* Reaction 1: Flame / Like */}
-          <div className="flex flex-col items-center gap-1">
-            <motion.button
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={handleToggleLike}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-xl backdrop-blur-md border ${
-                hasLiked
-                  ? 'bg-orange-500/25 border-orange-500 text-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.4)]'
-                  : 'bg-white/10 hover:bg-white/20 border-white/15 text-white'
-              }`}
-              title="Fuego / Me gusta"
-            >
-              <Flame className={`w-6 h-6 ${hasLiked ? 'fill-orange-400 text-orange-400' : ''}`} />
-            </motion.button>
-            <span className="text-xs font-bold text-white drop-shadow">
-              {likes}
-            </span>
-          </div>
-
-          {/* Reaction 2: GG */}
-          <div className="flex flex-col items-center gap-1">
-            <motion.button
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={handleToggleGg}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-xl backdrop-blur-md border ${
-                hasGg
-                  ? 'bg-primary/25 border-primary text-primary shadow-[0_0_20px_rgba(230,0,43,0.4)]'
-                  : 'bg-white/10 hover:bg-white/20 border-white/15 text-white'
-              }`}
-              title="GG (Bien jugado)"
-            >
-              <ThumbsUp className={`w-5 h-5 ${hasGg ? 'fill-primary text-primary' : ''}`} />
-            </motion.button>
-            <span className="text-xs font-bold text-white drop-shadow">
-              {ggs}
-            </span>
-          </div>
-
-          {/* Reaction 3: MVP */}
-          <div className="flex flex-col items-center gap-1">
-            <motion.button
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={handleToggleMvp}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-xl backdrop-blur-md border ${
-                hasMvp
-                  ? 'bg-yellow-500/25 border-yellow-500 text-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.4)]'
-                  : 'bg-white/10 hover:bg-white/20 border-white/15 text-white'
-              }`}
-              title="MVP (Jugada destacada)"
-            >
-              <Trophy className={`w-5 h-5 ${hasMvp ? 'fill-yellow-400 text-yellow-400' : ''}`} />
-            </motion.button>
-            <span className="text-xs font-bold text-white drop-shadow">
-              {mvps}
-            </span>
-          </div>
-
-          {/* Comments Toggle Button */}
-          <div className="flex flex-col items-center gap-1">
-            <motion.button
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setIsCommentsOpen(!isCommentsOpen)}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-xl backdrop-blur-md border ${
-                isCommentsOpen
-                  ? 'bg-white text-black border-white'
-                  : 'bg-white/10 hover:bg-white/20 border-white/15 text-white'
-              }`}
-              title="Comentarios en vivo"
-            >
-              <MessageCircle className="w-5 h-5" />
-            </motion.button>
-            <span className="text-xs font-bold text-white drop-shadow">
-              {comments.length}
-            </span>
-          </div>
-
-          {/* Share Button */}
-          <div className="flex flex-col items-center gap-1">
-            <motion.button
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={handleShare}
-              className="w-12 h-12 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 text-white transition-all shadow-xl backdrop-blur-md"
-              title="Compartir Short"
-            >
-              {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Share2 className="w-5 h-5" />}
-            </motion.button>
-            <span className="text-[10px] font-bold text-zinc-400">
-              {copied ? 'Copiado' : 'Compartir'}
-            </span>
-          </div>
-
-          <div className="w-8 h-[1px] bg-white/15 my-1" />
-
-          {/* Vertical Navigation: Previous Short (↑) */}
-          <motion.button
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={handlePrevStory}
-            disabled={isFirstStoryOverall}
-            className="w-12 h-12 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/25 border border-white/15 text-white disabled:opacity-25 transition-all shadow-xl backdrop-blur-md"
-            title="Short anterior (Flecha Arriba ↑)"
-          >
-            <ChevronUp className="w-6 h-6" />
-          </motion.button>
-
-          {/* Vertical Navigation: Next Short (↓) */}
-          <motion.button
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={handleNextStory}
-            disabled={isLastStoryOverall}
-            className="w-12 h-12 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/25 border border-white/15 text-white disabled:opacity-25 transition-all shadow-xl backdrop-blur-md"
-            title="Siguiente Short (Flecha Abajo ↓)"
-          >
-            <ChevronDown className="w-6 h-6" />
-          </motion.button>
-        </div>
+        {renderActionButtons(false)}
 
         {/* ------------------------------------------------------------- */}
-        {/* 3. SLIDING COMMENTS PANEL (Desktop Side Panel / Mobile Overlay) */}
+        {/* 3. SLIDING COMMENTS PANEL (Desktop Side Panel)                */}
         {/* ------------------------------------------------------------- */}
         <AnimatePresence>
           {isCommentsOpen && (
@@ -652,7 +699,7 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
               animate={{ opacity: 1, x: 0, width: 330 }}
               exit={{ opacity: 0, x: 20, width: 0 }}
               transition={{ duration: 0.2 }}
-              className="hidden md:flex flex-col h-[85vh] sm:h-[88vh] max-h-[820px] bg-[#111116] border border-white/15 rounded-3xl overflow-hidden shadow-2xl p-4"
+              className="hidden sm:flex flex-col h-[85vh] sm:h-[88vh] max-h-[820px] bg-[#111116] border border-white/15 rounded-3xl overflow-hidden shadow-2xl p-4"
             >
               <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
                 <div className="flex items-center gap-2">
@@ -676,7 +723,7 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
                   <div key={c.id} className="flex gap-2.5 items-start text-xs">
                     <img
                       src={c.avatar}
-                      alt={c.author}
+                      alt=""
                       className="w-7 h-7 rounded-full object-cover border border-white/10 shrink-0 mt-0.5"
                     />
                     <div className="flex-1 bg-white/5 border border-white/5 rounded-xl px-3 py-2">
@@ -697,6 +744,83 @@ export const ShortsViewerModal: React.FC<ShortsViewerModalProps> = ({
 
               {/* Write Comment Form */}
               <form onSubmit={handleAddComment} className="pt-3 border-t border-white/10 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder={profile ? `Comentar como @${profile.username}...` : 'Inicia sesión para comentar...'}
+                  className="flex-1 bg-black/60 border border-white/10 rounded-full pl-3.5 pr-3 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-primary"
+                />
+                <button
+                  type="submit"
+                  disabled={isSubmittingComment || !newComment.trim()}
+                  className="p-2 rounded-full bg-primary hover:bg-primary/80 disabled:opacity-30 text-white transition-all shadow-md shrink-0"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ------------------------------------------------------------- */}
+        {/* 4. MOBILE SLIDE-UP COMMENTS BOTTOM SHEET                      */}
+        {/* ------------------------------------------------------------- */}
+        <AnimatePresence>
+          {isCommentsOpen && (
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="sm:hidden fixed inset-x-0 bottom-0 z-50 h-[70vh] max-h-[500px] bg-[#111116]/95 backdrop-blur-2xl border-t border-white/20 rounded-t-3xl p-4 flex flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.9)]"
+            >
+              {/* Drag handle */}
+              <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-3 shrink-0" />
+
+              <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-primary" />
+                  <h4 className="font-black text-sm text-white uppercase tracking-wider">
+                    Comentarios ({comments.length})
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCommentsOpen(false)}
+                  className="p-1 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Comments Thread */}
+              <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 pr-1">
+                {comments.map((c) => (
+                  <div key={c.id} className="flex gap-2.5 items-start text-xs">
+                    <img
+                      src={c.avatar}
+                      alt=""
+                      className="w-7 h-7 rounded-full object-cover border border-white/10 shrink-0 mt-0.5"
+                    />
+                    <div className="flex-1 bg-white/5 border border-white/5 rounded-xl px-3 py-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-white text-[11px]">{c.author}</span>
+                        <span className="text-[10px] text-zinc-500 font-mono">
+                          {new Date(c.created_at).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-zinc-300 leading-relaxed break-words">{c.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Write Comment Form */}
+              <form onSubmit={handleAddComment} className="pt-3 border-t border-white/10 flex items-center gap-2 shrink-0">
                 <input
                   type="text"
                   value={newComment}

@@ -48,7 +48,8 @@ export const Router = BrowserRouter;
 
 function matchRoute(pattern: string, pathname: string): Record<string, string> | null {
   const cleanPattern = decodeURIComponent(pattern).replace(/\/+$/, "") || "/";
-  const cleanPath = decodeURIComponent(pathname).replace(/\/+$/, "") || "/";
+  const pathWithoutQuery = pathname.split("?")[0];
+  const cleanPath = decodeURIComponent(pathWithoutQuery).replace(/\/+$/, "") || "/";
 
   if (cleanPattern === cleanPath) return {};
 

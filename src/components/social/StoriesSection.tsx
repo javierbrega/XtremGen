@@ -159,6 +159,15 @@ export const StoriesSection: React.FC = () => {
 
   useEffect(() => {
     loadStories();
+
+    if (typeof window !== 'undefined') {
+      const href = window.location.href;
+      if (href.includes('openShorts') || href.includes('short=')) {
+        setIsViewerOpen(true);
+      } else if (href.includes('openLive')) {
+        setIsLiveModalOpen(true);
+      }
+    }
   }, [loadStories]);
 
   // Group stories by User (Instagram / Facebook Stories Model)
@@ -421,10 +430,10 @@ export const StoriesSection: React.FC = () => {
             >
               {/* Background preview */}
               {isYouTube ? (
-                <div className="w-full h-full relative">
+                <div className="w-full h-full relative bg-zinc-950">
                   <img
                     src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
-                    alt={group.username}
+                    alt=""
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     referrerPolicy="no-referrer"
                   />
@@ -452,7 +461,7 @@ export const StoriesSection: React.FC = () => {
                   </div>
                 </div>
               ) : displayStory.media_type === 'video' ? (
-                <div className="w-full h-full relative">
+                <div className="w-full h-full relative bg-zinc-950">
                   <video
                     src={displayStory.media_url}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -466,10 +475,10 @@ export const StoriesSection: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="w-full h-full relative">
+                <div className="w-full h-full relative bg-zinc-950">
                   <img
                     src={displayStory.media_url}
-                    alt={group.username}
+                    alt=""
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     referrerPolicy="no-referrer"
                   />
@@ -495,8 +504,8 @@ export const StoriesSection: React.FC = () => {
               >
                 <img
                   src={group.avatarUrl}
-                  alt={group.username}
-                  className="w-full h-full rounded-full object-cover border border-black"
+                  alt=""
+                  className="w-full h-full rounded-full object-cover border border-black bg-zinc-800"
                   referrerPolicy="no-referrer"
                 />
               </div>
