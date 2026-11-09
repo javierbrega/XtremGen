@@ -1,55 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Play, Send, Sparkles, Image as ImageIcon, MessageSquare, Camera, X, Link as LinkIcon, Loader2, Smile, Radio, Tv, Flame, Eye, Video } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, Camera, X, Loader2, Smile, Link as LinkIcon, Send, MessageSquare } from 'lucide-react';
 import { Badge, Button, Card } from '../components/ui/Base';
 import { SocialLayout } from '../components/social/SocialLayout';
 import { ReactionButtons } from '../components/social/ReactionButtons';
 import { CommentsSection } from '../components/social/CommentsSection';
 import { StoriesSection } from '../components/social/StoriesSection';
-import { LiveStreamPlayerModal, LiveStreamData } from '../components/social/LiveStreamPlayerModal';
-import { LiveStreamModal } from '../components/social/LiveStreamModal';
-import { ShortsViewerModal } from '../components/social/ShortsViewerModal';
-import { parseStreamInfo, getPlatformMeta, YouTubeIcon, extractYouTubeId } from '../lib/stream-helpers';
 import { supabase } from '../lib/supabase/client';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-
-const SEED_LIVES: LiveStreamData[] = [
-  {
-    id: 'seed-live-twitch',
-    user_id: 'seed-streamer-1',
-    media_url: 'https://twitch.tv/shroud',
-    caption: '🔴 [Twitch] Rankeando en Search & Destroy BO7 con el clan',
-    created_at: new Date().toISOString(),
-    profiles: {
-      username: 'ShroudXG',
-      avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=ShroudXG',
-    },
-  },
-  {
-    id: 'seed-live-yt',
-    user_id: 'seed-streamer-2',
-    media_url: 'https://www.youtube.com/watch?v=5qap5aO4i9A',
-    caption: '🔴 [YouTube] Torneo Pro Invitational XtremGen En Vivo',
-    created_at: new Date().toISOString(),
-    profiles: {
-      username: 'JaviXG',
-      avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=JaviXG',
-    },
-  },
-  {
-    id: 'seed-live-kick',
-    user_id: 'seed-streamer-3',
-    media_url: 'https://kick.com/xqc',
-    caption: '🔴 [Kick] Watch Party Comunidad XtremGen Gaming Nights',
-    created_at: new Date().toISOString(),
-    profiles: {
-      username: 'CyberDrop',
-      avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=CyberDrop',
-    },
-  },
-];
 
 async function compressImage(file: File, maxWidth = 1280, quality = 0.85): Promise<Blob> {
   return new Promise((resolve) => {
@@ -115,27 +75,6 @@ export const SocialPage = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [lightboxMedia, setLightboxMedia] = useState<{ url: string; content?: string; author?: string; gameTag?: string } | null>(null);
 
-  // Option A: Active Social Tab ('feed' | 'shorts' | 'directos')
-  const [activeTab, setActiveTab] = useState<'feed' | 'shorts' | 'directos'>(() => {
-    if (typeof window !== 'undefined') {
-      const href = window.location.href;
-      if (href.includes('tab=directos') || href.includes('openLive') || href.includes('live=')) {
-        return 'directos';
-      }
-      if (href.includes('tab=shorts') || href.includes('openShorts') || href.includes('short=')) {
-        return 'shorts';
-      }
-    }
-    return 'feed';
-  });
-  const [liveStreams, setLiveStreams] = useState<LiveStreamData[]>([]);
-  const [shortsList, setShortsList] = useState<any[]>([]);
-  const [selectedLiveForPlayer, setSelectedLiveForPlayer] = useState<LiveStreamData | null>(null);
-  const [isLivePlayerModalOpen, setIsLivePlayerModalOpen] = useState(false);
-  const [isLiveBroadcastModalOpen, setIsLiveBroadcastModalOpen] = useState(false);
-  const [isShortsViewerOpen, setIsShortsViewerOpen] = useState(false);
-  const [activeShortGroupIndex, setActiveShortGroupIndex] = useState(0);
-
   const toggleComments = (postId: string) => {
     setExpandedComments((prev) => ({ ...prev, [postId]: !prev[postId] }));
   };
@@ -147,43 +86,22 @@ export const SocialPage = () => {
 
   const loadSocialFeed = useCallback(async () => {
     setIsLoading(true);
-    const [postsRes, profilesRes, storiesRes] = await Promise.all([
+    const [postsRes, profilesRes] = await Promise.all([
       supabase
         .from('social_posts')
         .select('*,profiles(username,avatar_url,is_pro,role_badge)')
         .order('created_at', { ascending: false })
         .limit(25),
       supabase.from('profiles').select('id,username,avatar_url,is_online').limit(10),
-      supabase
-        .from('social_stories')
-        .select('*,profiles(username,avatar_url,is_pro,role_badge)')
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false }),
     ]);
 
     setPosts(Array.isArray(postsRes.data) ? postsRes.data : []);
     setProfiles(Array.isArray(profilesRes.data) ? profilesRes.data : []);
-
-    const rawStories = Array.isArray(storiesRes.data) ? storiesRes.data : [];
-    const activeLives = rawStories.filter((s: any) => s.media_type === 'live');
-    const activeShorts = rawStories.filter((s: any) => s.media_type !== 'live');
-
-    setLiveStreams(activeLives.length > 0 ? activeLives : SEED_LIVES);
-    setShortsList(activeShorts);
     setIsLoading(false);
   }, []);
 
   useEffect(() => {
     loadSocialFeed();
-
-    if (typeof window !== 'undefined') {
-      const href = window.location.href;
-      if (href.includes('tab=directos') || href.includes('openLive') || href.includes('live=')) {
-        setActiveTab('directos');
-      } else if (href.includes('tab=shorts') || href.includes('openShorts') || href.includes('short=')) {
-        setActiveTab('shorts');
-      }
-    }
   }, [loadSocialFeed]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -307,94 +225,13 @@ export const SocialPage = () => {
     }
   };
 
-  // Option A: Groups for pure Shorts Viewer (No live streams)
-  const shortsUserGroups = React.useMemo(() => {
-    const map = new Map<string, any>();
-    for (const story of shortsList) {
-      const uid = story.user_id;
-      const author = story.profiles?.username || 'Gamer';
-      const avatar =
-        story.profiles?.avatar_url ||
-        `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${uid}`;
-
-      if (!map.has(uid)) {
-        map.set(uid, {
-          userId: uid,
-          username: author,
-          avatarUrl: avatar,
-          stories: [story],
-          latestStory: story,
-        });
-      } else {
-        const group = map.get(uid)!;
-        group.stories.push(story);
-      }
-    }
-    return Array.from(map.values());
-  }, [shortsList]);
-
   return (
     <SocialLayout>
-      {/* Option A Navigation Pill Tabs: Separate Muro, Shorts & Directos */}
-      <div className="max-w-[620px] mx-auto px-4 mb-5">
-        <div className="flex items-center gap-1.5 p-1 bg-[#121218] border border-white/10 rounded-2xl shadow-xl">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('feed');
-              if (typeof window !== 'undefined') window.location.hash = '/social';
-            }}
-            className={`flex-1 py-2 sm:py-2.5 px-3 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
-              activeTab === 'feed'
-                ? 'bg-primary text-white shadow-md'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>Muro</span>
-          </button>
+      {/* 9:16 Vertical Stories / Shorts Carousel */}
+      <StoriesSection />
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('shorts');
-              if (typeof window !== 'undefined') window.location.hash = '/social?tab=shorts';
-            }}
-            className={`flex-1 py-2 sm:py-2.5 px-3 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
-              activeTab === 'shorts'
-                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Play className="w-4 h-4 fill-current" />
-            <span>Shorts ⚡</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('directos');
-              if (typeof window !== 'undefined') window.location.hash = '/social?tab=directos';
-            }}
-            className={`flex-1 py-2 sm:py-2.5 px-3 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
-              activeTab === 'directos'
-                ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Radio className="w-4 h-4 text-red-400 animate-pulse" />
-            <span>Directos 🔴</span>
-          </button>
-        </div>
-      </div>
-
-      {activeTab === 'feed' && (
-        <>
-          {/* 9:16 Vertical Stories / Shorts Carousel */}
-          <StoriesSection />
-
-          {/* Modern Gaming Post Composer */}
-          <div className="max-w-[520px] mx-auto w-full px-4 mb-8">
+      {/* Modern Gaming Post Composer */}
+      <div className="max-w-[520px] mx-auto w-full px-4 mb-8">
         <Card className="p-4 sm:p-5 bg-[#121218] border-white/10 shadow-xl">
           <form onSubmit={handleCreatePost} className="space-y-3.5">
             <div className="flex gap-3 items-start">
@@ -714,342 +551,8 @@ export const SocialPage = () => {
           })
         )}
       </div>
-    </>
-  )}
 
-  {/* ============================================================= */}
-  {/* OPTION A: DEDICATED DIRECTOS TAB (TWITCH, KICK, YOUTUBE LIVE) */}
-  {/* ============================================================= */}
-  {activeTab === 'directos' && (
-    <div className="max-w-[720px] mx-auto w-full px-4 mb-10 space-y-6">
-      {/* Directos Hero Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1c080d] via-[#121218] to-black border border-red-500/30 p-5 sm:p-6 shadow-2xl">
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-xs font-black uppercase tracking-wider text-red-400">
-                XtremGen Directos Oficiales
-              </span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black text-white">
-              Transmisiones en Vivo
-            </h2>
-            <p className="text-xs sm:text-sm text-zinc-400 max-w-md">
-              Sigue las partidas de clanes y gamers en Twitch, Kick y YouTube con reproductor integrado en XtremGen.
-            </p>
-          </div>
-
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => {
-              if (!user) openAuthModal();
-              else setIsLiveBroadcastModalOpen(true);
-            }}
-            className="!bg-red-600 hover:!bg-red-700 !text-white flex items-center gap-2 font-black shadow-lg shadow-red-600/30 shrink-0 self-start sm:self-auto"
-          >
-            <Radio className="w-4 h-4 animate-pulse" />
-            <span>Re-transmitir Mi Vivo</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Grid of Community Live Streams */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {liveStreams.map((live) => {
-          const streamInfo = parseStreamInfo(live.media_url);
-          const meta = getPlatformMeta(streamInfo.platform);
-          const streamerName = live.profiles?.username || 'Streamer XG';
-          const streamerAvatar =
-            live.profiles?.avatar_url ||
-            `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${live.user_id}`;
-
-          return (
-            <div
-              key={live.id}
-              onClick={() => {
-                setSelectedLiveForPlayer(live);
-                setIsLivePlayerModalOpen(true);
-              }}
-              className="group relative rounded-2xl overflow-hidden bg-[#121218] border border-white/10 hover:border-red-500/50 transition-all duration-300 shadow-xl cursor-pointer flex flex-col justify-between"
-            >
-              {/* Thumbnail / Ambient Preview */}
-              <div className="relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center">
-                {streamInfo.platform === 'youtube' && streamInfo.channelOrId ? (
-                  <img
-                    src={`https://img.youtube.com/vi/${streamInfo.channelOrId}/hqdefault.jpg`}
-                    alt=""
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-85"
-                  />
-                ) : (
-                  <div
-                    className={`w-full h-full relative flex items-center justify-center bg-gradient-to-tr ${meta.bgGradient}`}
-                  >
-                    <meta.Icon className="w-14 h-14 text-white/30 group-hover:scale-110 transition-transform duration-300" />
-                  </div>
-                )}
-
-                {/* Overlaid Badges */}
-                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-                  <span className="px-2 py-0.5 rounded-full bg-red-600 text-white font-black text-[9px] uppercase tracking-wider flex items-center gap-1 shadow-lg animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white block" />
-                    EN VIVO
-                  </span>
-                </div>
-
-                {/* Platform Badge: STRICTLY NON-CLICKABLE BADGE TO RETAIN USER */}
-                <div className="absolute top-2.5 right-2.5">
-                  <div
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-white text-[10px] font-black shadow-lg border border-white/20 select-none backdrop-blur-md"
-                    style={{ backgroundColor: meta.color }}
-                    title={`Transmisión de ${meta.name} dentro de XtremGen`}
-                  >
-                    <meta.Icon className="w-3 h-3" />
-                    <span>{meta.badge}</span>
-                  </div>
-                </div>
-
-                {/* Hover Play Theater Overlay */}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <div className="px-4 py-2 rounded-xl bg-red-600 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-xl">
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    Ver en Directo
-                  </div>
-                </div>
-              </div>
-
-              {/* Streamer Info Bottom Row */}
-              <div className="p-3.5 flex items-start gap-3 bg-[#111116]">
-                {/* Glowing Avatar */}
-                <div className="relative w-9 h-9 rounded-full p-[2px] bg-gradient-to-tr from-red-600 via-rose-500 to-amber-400 shadow-[0_0_12px_rgba(239,68,68,0.8)] animate-pulse shrink-0">
-                  <img
-                    src={streamerAvatar}
-                    alt={streamerName}
-                    className="w-full h-full rounded-full object-cover border border-black bg-zinc-800"
-                  />
-                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-1 py-[0.5px] rounded-full bg-red-600 text-white font-black text-[7px] uppercase tracking-wider">
-                    VIVO
-                  </span>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-xs sm:text-sm text-white truncate group-hover:text-red-400 transition-colors">
-                    {live.caption || `${streamerName} en directo`}
-                  </h4>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[11px] font-semibold text-zinc-300 truncate">
-                      {streamerName}
-                    </span>
-                    <span className="text-[10px] text-zinc-500">•</span>
-                    <span className="text-[10px] font-mono text-zinc-400">
-                      🎮 Gaming
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  )}
-
-  {/* ============================================================= */}
-  {/* OPTION A: DEDICATED SHORTS TAB (PURE SHORT VERTICAL VIDEOS)   */}
-  {/* ============================================================= */}
-  {activeTab === 'shorts' && (
-    <div className="max-w-[720px] mx-auto w-full px-4 mb-10 space-y-6">
-      {/* Shorts Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1a0814] via-[#121218] to-black border border-white/10 p-5 sm:p-6 shadow-2xl">
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-xs font-black uppercase tracking-wider text-primary">
-                XtremGen Shorts Reel
-              </span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black text-white">
-              Clips y Jugadas Destacadas
-            </h2>
-            <p className="text-xs sm:text-sm text-zinc-400 max-w-md">
-              Desliza en vertical estilo YouTube Shorts para ver los mejores clutches y jugadas de la comunidad.
-            </p>
-          </div>
-
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => {
-              setActiveShortGroupIndex(0);
-              setIsShortsViewerOpen(true);
-            }}
-            className="flex items-center gap-2 font-black shadow-lg shrink-0 self-start sm:self-auto"
-          >
-            <Play className="w-4 h-4 fill-current" />
-            <span>Ver Shorts Vertical</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Grid of 9:16 Shorts */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-        {(shortsList.length > 0
-          ? shortsList
-          : [
-              {
-                id: 's-seed-1',
-                user_id: 'seed-sniper',
-                media_url: 'https://www.youtube.com/shorts/5e_0E06x-D0',
-                media_type: 'youtube',
-                caption: '🎯 Quickscope Clutch en Black Ops #shorts',
-                profiles: {
-                  username: 'GhostSniper',
-                  avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=GhostSniper',
-                },
-              },
-            ]
-        ).map((shortItem, idx) => {
-          const isYt = shortItem.media_type === 'youtube';
-          const ytId = isYt ? extractYouTubeId(shortItem.media_url) : null;
-          const author = shortItem.profiles?.username || 'Gamer';
-          const avatar =
-            shortItem.profiles?.avatar_url ||
-            `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${shortItem.user_id}`;
-
-          return (
-            <div
-              key={shortItem.id || idx}
-              onClick={() => {
-                const gIdx = shortsUserGroups.findIndex(
-                  (g) => g.userId === shortItem.user_id
-                );
-                setActiveShortGroupIndex(gIdx >= 0 ? gIdx : 0);
-                setIsShortsViewerOpen(true);
-              }}
-              className="group relative aspect-[9/16] rounded-2xl overflow-hidden bg-black border border-white/10 hover:border-primary/50 transition-all duration-300 shadow-xl cursor-pointer"
-            >
-              {isYt && ytId ? (
-                <img
-                  src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
-                  alt=""
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              ) : shortItem.media_type === 'video' ? (
-                <video
-                  src={shortItem.media_url}
-                  className="w-full h-full object-cover"
-                  muted
-                />
-              ) : (
-                <img
-                  src={shortItem.media_url}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              )}
-
-              {/* Informative Platform Badge (NO LINK) */}
-              <div className="absolute top-2.5 right-2.5">
-                {isYt && (
-                  <div
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/90 text-white text-[9px] font-black shadow-md border border-red-500/30 select-none"
-                    title="YouTube Short oficial"
-                  >
-                    <YouTubeIcon className="w-2.5 h-2.5" />
-                    <span>Short</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Gradient Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
-
-              {/* Creator info & caption */}
-              <div className="absolute bottom-3 left-3 right-3 space-y-1">
-                <div className="flex items-center gap-1.5">
-                  <img
-                    src={avatar}
-                    alt={author}
-                    className="w-5 h-5 rounded-full object-cover border border-white/20"
-                  />
-                  <span className="text-[11px] font-bold text-white truncate">
-                    {author}
-                  </span>
-                </div>
-                {shortItem.caption && (
-                  <p className="text-[10px] text-zinc-300 line-clamp-2 leading-tight">
-                    {shortItem.caption}
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  )}
-
-  {/* ============================================================= */}
-  {/* MODALS: THEATER LIVE PLAYER, LIVE BROADCAST & SHORTS VIEWER    */}
-  {/* ============================================================= */}
-  <LiveStreamPlayerModal
-    isOpen={isLivePlayerModalOpen}
-    stream={selectedLiveForPlayer}
-    onClose={() => {
-      setIsLivePlayerModalOpen(false);
-      setSelectedLiveForPlayer(null);
-    }}
-  />
-
-  <LiveStreamModal
-    isOpen={isLiveBroadcastModalOpen}
-    onClose={() => setIsLiveBroadcastModalOpen(false)}
-    onStreamStarted={() => {
-      loadSocialFeed();
-      setActiveTab('directos');
-    }}
-  />
-
-  <ShortsViewerModal
-    isOpen={isShortsViewerOpen}
-    storyGroups={
-      shortsUserGroups.length > 0
-        ? shortsUserGroups
-        : [
-            {
-              userId: 'seed-sniper',
-              username: 'GhostSniper',
-              avatarUrl: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=GhostSniper',
-              stories: [
-                {
-                  id: 'seed-yt-1',
-                  user_id: 'seed-sniper',
-                  media_url: 'https://www.youtube.com/shorts/5e_0E06x-D0',
-                  media_type: 'youtube',
-                  caption: '🎯 Quickscope Insano en Black Ops #shorts',
-                  created_at: new Date().toISOString(),
-                },
-              ],
-              latestStory: {
-                id: 'seed-yt-1',
-                user_id: 'seed-sniper',
-                media_url: 'https://www.youtube.com/shorts/5e_0E06x-D0',
-                media_type: 'youtube',
-                caption: '🎯 Quickscope Insano en Black Ops #shorts',
-                created_at: new Date().toISOString(),
-              },
-            },
-          ]
-    }
-    initialGroupIndex={activeShortGroupIndex}
-    onClose={() => setIsShortsViewerOpen(false)}
-  />
-
-  {/* Fullscreen Lightbox Modal */}
+      {/* Fullscreen Lightbox Modal */}
   {lightboxMedia && (
         <div
           onClick={() => setLightboxMedia(null)}

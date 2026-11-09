@@ -9,8 +9,8 @@ export const SocialLayout = ({ children }: { children: React.ReactNode }) => {
         {children}
       </main>
 
-      <aside className="hidden xl:block w-[350px] flex-shrink-0 bg-[#0a0a0a]">
-        <div className="sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto no-scrollbar pl-6 border-l border-gray-800/50">
+      <aside className="hidden lg:block w-[320px] xl:w-[350px] flex-shrink-0 bg-[#0a0a0a]">
+        <div className="sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto no-scrollbar pl-5 xl:pl-6 border-l border-gray-800/50">
           <SocialRightSidebar />
         </div>
       </aside>
