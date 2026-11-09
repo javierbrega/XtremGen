@@ -144,6 +144,26 @@ class QueryBuilder<T = any> {
     return this;
   }
 
+  gt(column: string, value: any) {
+    this.params.append(column, `gt.${value}`);
+    return this;
+  }
+
+  gte(column: string, value: any) {
+    this.params.append(column, `gte.${value}`);
+    return this;
+  }
+
+  lt(column: string, value: any) {
+    this.params.append(column, `lt.${value}`);
+    return this;
+  }
+
+  lte(column: string, value: any) {
+    this.params.append(column, `lte.${value}`);
+    return this;
+  }
+
   order(column: string, opts?: { ascending?: boolean }) {
     const dir = opts?.ascending ? 'asc' : 'desc';
     this.params.set('order', `${column}.${dir}`);

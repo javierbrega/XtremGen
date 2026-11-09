@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Play, Send, Sparkles, Image as ImageIcon, MessageSquare, Camera, X, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { Plus, Play, Send, Sparkles, Image as ImageIcon, MessageSquare, Camera, X, Link as LinkIcon, Loader2, Smile } from 'lucide-react';
 import { Badge, Button, Card } from '../components/ui/Base';
 import { SocialLayout } from '../components/social/SocialLayout';
 import { ReactionButtons } from '../components/social/ReactionButtons';
+import { CommentsSection } from '../components/social/CommentsSection';
+import { StoriesSection } from '../components/social/StoriesSection';
 import { supabase } from '../lib/supabase/client';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../context/NotificationContext';
@@ -47,6 +49,14 @@ async function compressImage(file: File, maxWidth = 1280, quality = 0.85): Promi
   });
 }
 
+const MOOD_OPTIONS = [
+  { id: 'on_fire', label: '🔥 En Racha' },
+  { id: 'tryhard', label: '🎯 Tryhard' },
+  { id: 'chill', label: '☕ Chill' },
+  { id: 'tilt', label: '💀 Tilt' },
+  { id: 'lfg', label: '🏆 Buscando Team' },
+];
+
 export const SocialPage = () => {
   const [posts, setPosts] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -59,8 +69,15 @@ export const SocialPage = () => {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [gameTag, setGameTag] = useState('Call of Duty: BO7');
+  const [selectedMood, setSelectedMood] = useState<string | null>(null);
+  const [showMoodSelector, setShowMoodSelector] = useState(false);
+  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
   const [isPublishing, setIsPublishing] = useState(false);
   const [lightboxMedia, setLightboxMedia] = useState<{ url: string; content?: string; author?: string; gameTag?: string } | null>(null);
+
+  const toggleComments = (postId: string) => {
+    setExpandedComments((prev) => ({ ...prev, [postId]: !prev[postId] }));
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -172,6 +189,7 @@ export const SocialPage = () => {
       content: content.trim(),
       media_url: finalMediaUrl,
       game_tag: gameTag,
+      mood: selectedMood || null,
     });
     setIsPublishing(false);
 
@@ -186,6 +204,8 @@ export const SocialPage = () => {
       handleClearImage();
       setMediaUrl('');
       setShowUrlInput(false);
+      setSelectedMood(null);
+      setShowMoodSelector(false);
       loadSocialFeed();
       showNotification({
         title: '¡Publicado en XG Social!',
@@ -197,59 +217,14 @@ export const SocialPage = () => {
 
   return (
     <SocialLayout>
-      {/* Dynamic Stories Bar from registered profiles */}
-      <div className="w-full max-w-[600px] mx-auto overflow-x-auto no-scrollbar py-6 px-4 border-b border-gray-800/50 mb-6">
-        <div className="flex gap-4 min-w-max items-center">
-          <div
-            onClick={() => (!user ? openAuthModal() : null)}
-            className="flex flex-col items-center gap-2 cursor-pointer group"
-          >
-            <div className="relative w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-primary to-orange-500">
-              <div className="w-full h-full rounded-full border-2 border-[#0a0a0a] overflow-hidden relative bg-zinc-900 flex items-center justify-center">
-                {profile?.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt={profile.username}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <Plus className="w-6 h-6 text-white" />
-                )}
-              </div>
-            </div>
-            <span className="text-xs font-bold text-white">
-              {profile ? profile.username : 'Tu Historia'}
-            </span>
-          </div>
+      {/* 9:16 Vertical Stories / Shorts Carousel */}
+      <StoriesSection />
 
-          {profiles
-            .filter((p) => p.id !== profile?.id)
-            .map((p) => (
-              <div key={p.id} className="flex flex-col items-center gap-2 cursor-pointer group">
-                <div className="relative w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-primary to-accent">
-                  <div className="w-full h-full rounded-full border-2 border-[#0a0a0a] overflow-hidden">
-                    <img
-                      src={p.avatar_url || `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${p.id}`}
-                      alt={p.username}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                </div>
-                <span className="text-xs font-medium text-zinc-400 group-hover:text-white transition-colors">
-                  {p.username}
-                </span>
-              </div>
-            ))}
-        </div>
-      </div>
-
-      {/* Create Social Post Composer */}
+      {/* Modern Gaming Post Composer */}
       <div className="max-w-[520px] mx-auto w-full px-4 mb-8">
-        <Card className="p-5 bg-[#121218] border-white/10">
-          <form onSubmit={handleCreatePost} className="space-y-4">
-            <div className="flex gap-3">
+        <Card className="p-4 sm:p-5 bg-[#121218] border-white/10 shadow-xl">
+          <form onSubmit={handleCreatePost} className="space-y-3.5">
+            <div className="flex gap-3 items-start">
               <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center overflow-hidden flex-shrink-0">
                 {profile?.avatar_url ? (
                   <img
@@ -262,17 +237,35 @@ export const SocialPage = () => {
                   <Sparkles className="w-5 h-5 text-primary" />
                 )}
               </div>
-              <textarea
-                rows={2}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder={
-                  profile
-                    ? `¿Qué jugada o setup quieres compartir hoy, ${profile.username}?`
-                    : 'Inicia sesión para publicar clips, jugadas o tu setup...'
-                }
-                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-primary resize-none"
-              />
+              <div className="flex-1 space-y-2">
+                <textarea
+                  rows={2}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder={
+                    profile
+                      ? `¿Qué jugada o setup quieres compartir hoy, ${profile.username}?`
+                      : 'Inicia sesión para publicar clips, jugadas o tu setup...'
+                  }
+                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-primary resize-none transition-colors"
+                />
+
+                {/* Selected Mood Chip Preview */}
+                {selectedMood && (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-300 text-xs font-bold">
+                      <span>Modo: {MOOD_OPTIONS.find((m) => m.id === selectedMood)?.label}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMood(null)}
+                        className="hover:text-white"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Image Preview with Remove Button */}
@@ -325,24 +318,67 @@ export const SocialPage = () => {
               </div>
             )}
 
+            {/* Gamer Mood / Sentimiento Options Tray */}
+            {showMoodSelector && (
+              <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex flex-wrap gap-1.5 animate-in fade-in duration-150">
+                <span className="w-full text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">
+                  Selecciona tu Modo Gamer / Sentimiento:
+                </span>
+                {MOOD_OPTIONS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMood(selectedMood === m.id ? null : m.id);
+                      setShowMoodSelector(false);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                      selectedMood === m.id
+                        ? 'bg-yellow-500 text-black shadow-md'
+                        : 'bg-black/50 text-zinc-300 hover:text-white hover:bg-white/10 border border-white/10'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Bottom Actions Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/5">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-white/5">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                {/* Photo / Clip Upload */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploadingImage}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/10 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
-                  title="Subir foto desde tu dispositivo al bucket de Supabase"
+                  title="Subir foto o clip al bucket de Supabase"
                 >
                   {isUploadingImage ? (
                     <Loader2 className="w-4 h-4 animate-spin text-primary" />
                   ) : (
                     <Camera className="w-4 h-4 text-primary" />
                   )}
-                  <span>{selectedFile ? 'Cambiar foto' : 'Subir foto'}</span>
+                  <span>{selectedFile ? 'Cambiar foto' : 'Foto/Clip'}</span>
                 </button>
 
+                {/* Gamer Mood / Sentimiento button */}
+                <button
+                  type="button"
+                  onClick={() => setShowMoodSelector(!showMoodSelector)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    showMoodSelector || selectedMood
+                      ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40'
+                      : 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10'
+                  }`}
+                  title="Modo Gamer / Sentimiento"
+                >
+                  <Smile className="w-4 h-4 text-yellow-400" />
+                  <span className="hidden sm:inline">Sentimiento</span>
+                </button>
+
+                {/* URL Link */}
                 <button
                   type="button"
                   onClick={() => setShowUrlInput(!showUrlInput)}
@@ -354,18 +390,20 @@ export const SocialPage = () => {
                   title="Pegar enlace web"
                 >
                   <LinkIcon className="w-3.5 h-3.5" />
-                  <span>Enlace</span>
+                  <span className="hidden sm:inline">Enlace</span>
                 </button>
 
+                {/* Game Tag Dropdown */}
                 <select
                   value={gameTag}
                   onChange={(e) => setGameTag(e.target.value)}
-                  className="bg-black/50 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-primary"
+                  className="bg-black/50 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-primary max-w-[130px] sm:max-w-none"
                 >
                   <option value="Call of Duty: BO7">Call of Duty: BO7</option>
                   <option value="Valorant">Valorant</option>
                   <option value="Counter-Strike 2">Counter-Strike 2</option>
                   <option value="Setup / Hardware">Setup / Hardware</option>
+                  <option value="XtremGen Streetwear">XtremGen Drop</option>
                 </select>
               </div>
 
@@ -424,7 +462,14 @@ export const SocialPage = () => {
                           </Badge>
                         )}
                       </div>
-                      <div className="text-xs text-primary font-semibold">{post.game_tag || 'Gaming'}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs text-primary font-semibold">{post.game_tag || 'Gaming'}</span>
+                        {post.mood && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 font-bold">
+                            {MOOD_OPTIONS.find((m) => m.id === post.mood)?.label || post.mood}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <span className="text-[11px] text-zinc-500">
@@ -466,11 +511,29 @@ export const SocialPage = () => {
                 </p>
 
                 <ReactionButtons
+                  postId={post.id}
                   initialGg={post.gg_count || 0}
                   initialMvp={post.likes_count || 0}
                   initialFire={post.fires_count || 0}
-                  comments={String(post.comments_count || 0)}
+                  commentsCount={post.comments_count || 0}
+                  onToggleComments={() => toggleComments(post.id)}
+                  isCommentsOpen={!!expandedComments[post.id]}
                 />
+
+                {expandedComments[post.id] && (
+                  <CommentsSection
+                    postId={post.id}
+                    onCommentAdded={() => {
+                      setPosts((prev) =>
+                        prev.map((p) =>
+                          p.id === post.id
+                            ? { ...p, comments_count: (p.comments_count || 0) + 1 }
+                            : p
+                        )
+                      );
+                    }}
+                  />
+                )}
               </article>
             );
           })
