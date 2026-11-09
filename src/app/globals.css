@@ -12,6 +12,9 @@
     --color-primary-glow: rgba(239, 68, 68, 0.2);
     --color-accent: #ef4444;
     --color-border: rgba(255, 255, 255, 0.08);
+    --font-space-grotesk: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+    --font-chakra-petch: 'Chakra Petch', system-ui, -apple-system, sans-serif;
+    --font-jetbrains-mono: 'JetBrains Mono', monospace;
   }
 
   body {

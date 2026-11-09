@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { ShortsViewerModal } from './ShortsViewerModal';
 import { LiveStreamModal } from './LiveStreamModal';
+import { LiveStreamPlayerModal, LiveStreamData } from './LiveStreamPlayerModal';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -114,6 +115,10 @@ export const StoriesSection: React.FC = () => {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [activeGroupIndex, setActiveGroupIndex] = useState<number>(0);
 
+  // Dedicated Live Stream Viewer modal state (Option A: Separate from Shorts)
+  const [selectedLiveStream, setSelectedLiveStream] = useState<LiveStreamData | null>(null);
+  const [isLivePlayerOpen, setIsLivePlayerOpen] = useState(false);
+
   // Creator & Live Modals state
   const [isCreatingStory, setIsCreatingStory] = useState(false);
   const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
@@ -154,7 +159,7 @@ export const StoriesSection: React.FC = () => {
       const href = window.location.href;
       if (href.includes('openShorts') || href.includes('short=')) {
         setIsViewerOpen(true);
-      } else if (href.includes('openLive')) {
+      } else if (href.includes('openLive') || href.includes('live=')) {
         setIsLiveModalOpen(true);
       }
     }
@@ -205,6 +210,16 @@ export const StoriesSection: React.FC = () => {
 
     return groups;
   }, [stories]);
+
+  // Option A: Pure shorts playlist for the vertical viewer (Excludes live streams completely!)
+  const pureShortGroups = useMemo<UserStoryGroup[]>(() => {
+    return storyGroups
+      .map((g) => ({
+        ...g,
+        stories: g.stories.filter((s) => s.media_type !== 'live'),
+      }))
+      .filter((g) => g.stories.length > 0);
+  }, [storyGroups]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -393,8 +408,14 @@ export const StoriesSection: React.FC = () => {
             <div
               key={group.userId}
               onClick={() => {
-                setActiveGroupIndex(gIdx);
-                setIsViewerOpen(true);
+                if (isLive && liveStory) {
+                  setSelectedLiveStream(liveStory as LiveStreamData);
+                  setIsLivePlayerOpen(true);
+                } else {
+                  const shortIdx = pureShortGroups.findIndex((g) => g.userId === group.userId);
+                  setActiveGroupIndex(shortIdx >= 0 ? shortIdx : 0);
+                  setIsViewerOpen(true);
+                }
               }}
               className="relative w-28 sm:w-32 h-44 sm:h-48 rounded-2xl overflow-hidden bg-black border border-white/10 hover:border-white/30 transition-all duration-300 flex-shrink-0 cursor-pointer group shadow-lg"
             >
@@ -521,13 +542,25 @@ export const StoriesSection: React.FC = () => {
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* ELEVATED YOUTUBE SHORTS STYLE VIEWER MODAL                    */}
+      {/* PURE YOUTUBE SHORTS STYLE VIEWER MODAL (ZERO LIVE STREAMS)     */}
       {/* ------------------------------------------------------------- */}
       <ShortsViewerModal
         isOpen={isViewerOpen}
         onClose={() => setIsViewerOpen(false)}
-        storyGroups={storyGroups}
+        storyGroups={pureShortGroups}
         initialGroupIndex={activeGroupIndex}
+      />
+
+      {/* ------------------------------------------------------------- */}
+      {/* DEDICATED LIVE STREAM THEATER PLAYER (OPTION A: SEPARATED)    */}
+      {/* ------------------------------------------------------------- */}
+      <LiveStreamPlayerModal
+        isOpen={isLivePlayerOpen}
+        stream={selectedLiveStream}
+        onClose={() => {
+          setIsLivePlayerOpen(false);
+          setSelectedLiveStream(null);
+        }}
       />
 
       {/* ------------------------------------------------------------- */}

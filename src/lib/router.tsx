@@ -15,7 +15,12 @@ const RouterContext = createContext<RouterContextValue>({
 });
 
 export function BrowserRouter({ children }: { children: React.ReactNode }) {
-  const [pathname, setPathname] = useState<string>("/");
+  const [pathname, setPathname] = useState<string>(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      return window.location.hash.slice(1) || "/";
+    }
+    return "/";
+  });
 
   useEffect(() => {
     const handlePopState = () => {

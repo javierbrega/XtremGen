@@ -7,7 +7,6 @@ import {
   Radio,
   Sparkles,
   StopCircle,
-  ExternalLink,
   Flame,
   CheckCircle2,
 } from 'lucide-react';
@@ -226,14 +225,10 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
                 Directo en curso:
               </span>
               <p className="text-sm font-black text-white">{title}</p>
-              <a
-                href={parsedStream.originalUrl || streamUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-300 font-bold pt-1"
-              >
-                Abrir stream original <ExternalLink className="w-3 h-3" />
-              </a>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-[11px] text-zinc-300 font-bold border border-white/10 mt-1 select-none">
+                <currentMeta.Icon className="w-3.5 h-3.5" />
+                <span>Transmitiendo en vivo desde {currentMeta.name}</span>
+              </div>
             </div>
 
             <Button
