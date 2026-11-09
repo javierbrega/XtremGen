@@ -60,6 +60,7 @@ export const SocialPage = () => {
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [gameTag, setGameTag] = useState('Call of Duty: BO7');
   const [isPublishing, setIsPublishing] = useState(false);
+  const [lightboxMedia, setLightboxMedia] = useState<{ url: string; content?: string; author?: string; gameTag?: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -432,15 +433,29 @@ export const SocialPage = () => {
                 </div>
 
                 {post.media_url && (
-                  <div className="relative aspect-[4/5] bg-black group overflow-hidden rounded-xl border border-gray-800/50 mb-3">
+                  <div
+                    onClick={() =>
+                      setLightboxMedia({
+                        url: post.media_url,
+                        content: post.content,
+                        author,
+                        gameTag: post.game_tag,
+                      })
+                    }
+                    className="relative bg-black/70 group overflow-hidden rounded-2xl border border-white/10 mb-3 cursor-pointer flex items-center justify-center max-h-[560px] shadow-lg"
+                  >
                     <img
                       src={post.media_url}
-                      alt={post.content}
-                      className="w-full h-full object-cover"
+                      alt={post.content || 'Post media'}
+                      className="w-full h-auto max-h-[560px] object-contain rounded-2xl group-hover:scale-[1.01] transition-transform duration-200"
+                      loading="lazy"
                       referrerPolicy="no-referrer"
                     />
-                    <div className="absolute bottom-3 left-3">
-                      <Badge variant="primary">{post.game_tag || 'Highlight'}</Badge>
+                    <div className="absolute bottom-3 left-3 flex items-center gap-2 pointer-events-none">
+                      <Badge variant="primary">{post.game_tag || 'Gaming'}</Badge>
+                    </div>
+                    <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-medium text-white/90 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 shadow-md border border-white/10 pointer-events-none">
+                      <span>Ampliar</span>
                     </div>
                   </div>
                 )}
@@ -461,6 +476,49 @@ export const SocialPage = () => {
           })
         )}
       </div>
+
+      {/* Fullscreen Lightbox Modal */}
+      {lightboxMedia && (
+        <div
+          onClick={() => setLightboxMedia(null)}
+          className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-4xl w-full bg-[#111116] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+          >
+            <div className="flex items-center justify-between p-3.5 border-b border-white/10 bg-black/40">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-white">{lightboxMedia.author || 'Usuario XG'}</span>
+                {lightboxMedia.gameTag && (
+                  <Badge variant="primary" className="text-[10px]">{lightboxMedia.gameTag}</Badge>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setLightboxMedia(null)}
+                className="p-1.5 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                title="Cerrar visor"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 flex items-center justify-center bg-black/95 overflow-hidden p-3 min-h-[300px]">
+              <img
+                src={lightboxMedia.url}
+                alt={lightboxMedia.content || 'Preview'}
+                className="max-h-[72vh] w-auto max-w-full object-contain rounded-lg"
+              />
+            </div>
+            {lightboxMedia.content && (
+              <div className="p-4 border-t border-white/10 bg-black/60 text-sm text-zinc-200">
+                <span className="font-bold text-white mr-2">{lightboxMedia.author}:</span>
+                {lightboxMedia.content}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </SocialLayout>
   );
 };
