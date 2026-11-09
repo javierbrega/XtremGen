@@ -342,7 +342,7 @@ export const StoriesSection: React.FC = () => {
     <div className="w-full max-w-[620px] mx-auto px-4 mb-6">
       {/* Horizontal Scroll of Vertical Story Cards */}
       <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-2">
-        {/* Card 1: Create Story Button */}
+        {/* Card 1: Unified Create Story / Broadcast LIVE Button */}
         <div
           onClick={() => {
             if (!user) {
@@ -364,7 +364,7 @@ export const StoriesSection: React.FC = () => {
             ) : (
               <Camera className="w-8 h-8 text-zinc-600" />
             )}
-            <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
+            <div className="absolute inset-0 bg-black/25 group-hover:bg-transparent transition-colors" />
           </div>
 
           <div className="absolute top-[68%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary border-4 border-[#16161f] flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform">
@@ -372,37 +372,8 @@ export const StoriesSection: React.FC = () => {
           </div>
 
           <div className="h-[32%] flex items-center justify-center pt-2 pb-1.5 px-2 bg-[#121218]">
-            <span className="text-[11px] font-black uppercase tracking-wider text-white text-center leading-tight">
-              Crear Short
-            </span>
-          </div>
-        </div>
-
-        {/* Card 2: Broadcast LIVE Button */}
-        <div
-          onClick={() => {
-            if (!user) {
-              openAuthModal();
-            } else {
-              setIsLiveModalOpen(true);
-            }
-          }}
-          className="relative w-28 sm:w-32 h-44 sm:h-48 rounded-2xl overflow-hidden bg-[#140b0d] border border-red-500/30 hover:border-red-500 transition-all duration-300 flex-shrink-0 cursor-pointer group shadow-lg flex flex-col justify-between"
-        >
-          <div className="relative w-full h-[68%] overflow-hidden bg-black/60 flex items-center justify-center">
-            <div className="w-12 h-12 rounded-full bg-red-600/20 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(239,68,68,0.4)]">
-              <Radio className="w-6 h-6 animate-pulse" />
-            </div>
-            <div className="absolute inset-0 bg-red-950/20 group-hover:bg-transparent transition-colors" />
-          </div>
-
-          <div className="absolute top-[68%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-red-600 border-4 border-[#140b0d] flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform animate-pulse">
-            <Radio className="w-4 h-4" />
-          </div>
-
-          <div className="h-[32%] flex items-center justify-center pt-2 pb-1.5 px-2 bg-[#12080a]">
-            <span className="text-[11px] font-black uppercase tracking-wider text-red-400 text-center leading-tight flex items-center gap-1">
-              🔴 Re-transmitir
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-white text-center leading-tight">
+              Short o Vivo
             </span>
           </div>
         </div>
@@ -425,14 +396,35 @@ export const StoriesSection: React.FC = () => {
                 setActiveGroupIndex(gIdx);
                 setIsViewerOpen(true);
               }}
-              className={`relative w-28 sm:w-32 h-44 sm:h-48 rounded-2xl overflow-hidden bg-black transition-all duration-300 flex-shrink-0 cursor-pointer group shadow-lg ${
-                isLive
-                  ? 'border-2 border-red-500 shadow-[0_0_25px_rgba(239,68,68,0.6)] animate-pulse'
-                  : 'border border-white/10 hover:border-primary/80'
-              }`}
+              className="relative w-28 sm:w-32 h-44 sm:h-48 rounded-2xl overflow-hidden bg-black border border-white/10 hover:border-white/30 transition-all duration-300 flex-shrink-0 cursor-pointer group shadow-lg"
             >
               {/* Background preview */}
-              {isYouTube ? (
+              {isLive ? (
+                /* Clean live background: Thumbnail or ambient streamer avatar */
+                <div className={`w-full h-full relative overflow-hidden flex items-center justify-center ${liveMeta ? `bg-gradient-to-t ${liveMeta.bgGradient}` : 'bg-zinc-950'}`}>
+                  {liveStreamInfo?.platform === 'youtube' && liveStreamInfo.channelOrId ? (
+                    <img
+                      src={`https://img.youtube.com/vi/${liveStreamInfo.channelOrId}/hqdefault.jpg`}
+                      alt=""
+                      className="w-full h-full object-cover opacity-85 group-hover:scale-105 transition-transform duration-300"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <img
+                      src={group.avatarUrl}
+                      alt=""
+                      className="w-full h-full object-cover blur-sm scale-110 opacity-35 group-hover:scale-125 transition-transform duration-500"
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
+                  {liveMeta && (
+                    <div className="absolute top-2.5 right-2.5 px-1.5 py-0.5 rounded-full bg-black/75 text-white text-[9px] font-bold flex items-center gap-1 backdrop-blur-md border border-white/10">
+                      <liveMeta.Icon className="w-2.5 h-2.5" />
+                      <span className="text-[8px] tracking-tight">{liveMeta.badge}</span>
+                    </div>
+                  )}
+                </div>
+              ) : isYouTube ? (
                 <div className="w-full h-full relative bg-zinc-950">
                   <img
                     src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
@@ -452,37 +444,6 @@ export const StoriesSection: React.FC = () => {
                       <YouTubeIcon className="w-2.5 h-2.5" />
                       SHORT
                     </span>
-                  </div>
-                </div>
-              ) : isLive ? (
-                <div className={`w-full h-full relative flex items-center justify-center ${liveMeta ? `bg-gradient-to-t ${liveMeta.bgGradient}` : 'bg-red-950/40'}`}>
-                  {liveStreamInfo?.platform === 'youtube' && liveStreamInfo.channelOrId ? (
-                    <img
-                      src={`https://img.youtube.com/vi/${liveStreamInfo.channelOrId}/hqdefault.jpg`}
-                      alt=""
-                      className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-300"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : null}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/60" />
-                  <div className="relative z-10 flex flex-col items-center gap-1.5 p-2 text-center">
-                    {liveMeta ? (
-                      <span
-                        className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-lg"
-                        style={{ backgroundColor: liveMeta.color }}
-                      >
-                        <liveMeta.Icon className="w-4 h-4" />
-                      </span>
-                    ) : (
-                      <Radio className="w-7 h-7 text-red-500 animate-pulse" />
-                    )}
-                    <span className="text-[10px] font-black text-white uppercase tracking-wider drop-shadow-md line-clamp-1">
-                      {liveMeta ? liveMeta.name : 'EN VIVO'}
-                    </span>
-                  </div>
-                  <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-red-600 text-white font-black text-[9px] uppercase tracking-wider flex items-center gap-1 shadow-lg animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white block" />
-                    LIVE
                   </div>
                 </div>
               ) : displayStory.media_type === 'video' ? (
@@ -517,22 +478,30 @@ export const StoriesSection: React.FC = () => {
               )}
 
               {/* Gradient dark overlays */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/40 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 pointer-events-none" />
 
-              {/* Floating avatar with neon ring */}
-              <div
-                className={`absolute top-2.5 left-2.5 w-9 h-9 rounded-full p-[2px] shadow-md ${
-                  isLive
-                    ? 'bg-gradient-to-tr from-red-500 to-yellow-500 animate-pulse'
-                    : 'bg-gradient-to-tr from-primary to-yellow-500'
-                }`}
-              >
-                <img
-                  src={group.avatarUrl}
-                  alt=""
-                  className="w-full h-full rounded-full object-cover border border-black bg-zinc-800"
-                  referrerPolicy="no-referrer"
-                />
+              {/* Floating avatar: ONLY THIS HAS THE "EN VIVO" GLOWING RING AS REQUESTED */}
+              <div className="absolute top-2.5 left-2.5">
+                <div
+                  className={`relative w-9 h-9 rounded-full ${
+                    isLive
+                      ? 'p-[2.5px] bg-gradient-to-tr from-red-600 via-rose-500 to-amber-400 shadow-[0_0_16px_rgba(239,68,68,0.95)] animate-pulse'
+                      : 'p-[2px] bg-gradient-to-tr from-primary to-yellow-500 shadow-md'
+                  }`}
+                >
+                  <img
+                    src={group.avatarUrl}
+                    alt=""
+                    className="w-full h-full rounded-full object-cover border border-black bg-zinc-800"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                {/* Live pill attached to profile photo frame */}
+                {isLive && (
+                  <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-1.5 py-[1px] rounded-full bg-red-600 text-white font-black text-[8px] uppercase tracking-wider shadow-lg border border-black/40 flex items-center justify-center">
+                    VIVO
+                  </span>
+                )}
               </div>
 
               {/* Bottom username and caption preview */}
@@ -601,31 +570,44 @@ export const StoriesSection: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Mode Selector Tabs: YouTube Short vs File Upload */}
-                <div className="flex rounded-xl bg-black/60 p-1 border border-white/10 mb-4">
+                {/* Mode Selector Tabs: YouTube Short vs Re-transmitir VIVO vs File Upload */}
+                <div className="grid grid-cols-3 gap-1 rounded-xl bg-black/60 p-1 border border-white/10 mb-4">
                   <button
                     type="button"
                     onClick={() => setCreationMode('youtube')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`py-2 px-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all ${
                       creationMode === 'youtube'
                         ? 'bg-red-600 text-white shadow-md'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
-                    <YouTubeIcon className="w-4 h-4" />
-                    <span>YouTube Short</span>
+                    <YouTubeIcon className="w-3.5 h-3.5" />
+                    <span className="text-[11px]">Short</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreatingStory(false);
+                      setIsLiveModalOpen(true);
+                    }}
+                    className="py-2 px-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1 text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
+                  >
+                    <Radio className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+                    <span className="text-[11px] text-red-400 font-black">En Vivo</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setCreationMode('upload')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`py-2 px-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all ${
                       creationMode === 'upload'
                         ? 'bg-primary text-white shadow-md'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
-                    <Camera className="w-4 h-4" />
-                    <span>Subir Archivo</span>
+                    <Camera className="w-3.5 h-3.5" />
+                    <span className="text-[11px]">Subir</span>
                   </button>
                 </div>
 
