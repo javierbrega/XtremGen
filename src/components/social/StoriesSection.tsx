@@ -1,17 +1,35 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, Sparkles, Camera, Loader2, Play, Flame, ThumbsUp, Trophy } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, Sparkles, Camera, Loader2, Play, Flame, ThumbsUp, Trophy, Link as LinkIcon, ExternalLink } from 'lucide-react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { Badge, Button } from '../ui/Base';
 
+// YouTube Official Vector Icon
+export const YouTubeIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+  </svg>
+);
+
+// Helper to extract 11-char YouTube ID from any Shorts / Video / Embed link
+export function extractYouTubeId(url: string | undefined | null): string | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  const regExp = /(?:youtube\.com\/(?:shorts\/|watch\?v=|v\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+  const match = trimmed.match(regExp);
+  if (match && match[1]) return match[1];
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+  return null;
+}
+
 interface StoryItem {
   id: string;
   user_id: string;
   media_url: string;
-  media_type: 'image' | 'video';
+  media_type: 'image' | 'video' | 'youtube';
   caption?: string;
   created_at: string;
   profiles?: {
@@ -23,12 +41,24 @@ interface StoryItem {
 // Curated seed stories for fresh gaming community launch
 const SEED_STORIES: StoryItem[] = [
   {
+    id: 'seed-yt-1',
+    user_id: 'seed-sniper',
+    media_url: 'https://www.youtube.com/shorts/5e_0E06x-D0',
+    media_type: 'youtube',
+    caption: '🎯 Quickscope Insano en Black Ops #shorts',
+    created_at: new Date(Date.now() - 3600000 * 1).toISOString(),
+    profiles: {
+      username: 'GhostSniper',
+      avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=GhostSniper',
+    },
+  },
+  {
     id: 'seed-1',
     user_id: 'seed-founder',
     media_url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=80',
     media_type: 'image',
     caption: '⚡ Nuevo setup listo para rankear en BO7 y Valorant!',
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
     profiles: {
       username: 'JaviXG',
       avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=JaviXG',
@@ -40,7 +70,7 @@ const SEED_STORIES: StoryItem[] = [
     media_url: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&auto=format&fit=crop&q=80',
     media_type: 'image',
     caption: '🏆 Clutch 1v4 en Punto Caliente. ¡Clip completo en Social!',
-    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 6).toISOString(),
     profiles: {
       username: 'RoninSniper',
       avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=RoninSniper',
@@ -52,7 +82,7 @@ const SEED_STORIES: StoryItem[] = [
     media_url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop&q=80',
     media_type: 'image',
     caption: '🔥 Nuevo Drop XtremGen Streetwear Hoodie Cyberpunk!',
-    created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 9).toISOString(),
     profiles: {
       username: 'CyberDrop',
       avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=CyberDrop',
@@ -69,7 +99,9 @@ export const StoriesSection: React.FC = () => {
   const [isCreatingStory, setIsCreatingStory] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Story Creator form state
+  // Story Creator mode & state: 'youtube' or 'upload'
+  const [creationMode, setCreationMode] = useState<'youtube' | 'upload'>('youtube');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [storyFile, setStoryFile] = useState<File | null>(null);
   const [storyPreview, setStoryPreview] = useState<string | null>(null);
   const [storyCaption, setStoryCaption] = useState('');
@@ -79,6 +111,8 @@ export const StoriesSection: React.FC = () => {
   const [storyProgress, setStoryProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef<any>(null);
+
+  const parsedYoutubeId = extractYouTubeId(youtubeUrl);
 
   const loadStories = useCallback(async () => {
     const { data } = await supabase
@@ -98,7 +132,8 @@ export const StoriesSection: React.FC = () => {
     loadStories();
   }, [loadStories]);
 
-  // Story auto-advance timer (5 seconds per story)
+  // Story auto-advance timer
+  // (Images: 5 seconds, YouTube Shorts / Videos: 30 seconds)
   useEffect(() => {
     if (activeStoryIndex === null) {
       setStoryProgress(0);
@@ -107,13 +142,15 @@ export const StoriesSection: React.FC = () => {
 
     if (isPaused) return;
 
+    const currentStory = stories[activeStoryIndex];
+    const isYouTube = currentStory?.media_type === 'youtube';
+    const totalDuration = isYouTube ? 30000 : 5000;
     const interval = 50; // update every 50ms
-    const step = (interval / 5000) * 100;
+    const step = (interval / totalDuration) * 100;
 
     timerRef.current = setInterval(() => {
       setStoryProgress((prev) => {
         if (prev >= 100) {
-          // Go to next story or close
           if (activeStoryIndex < stories.length - 1) {
             setActiveStoryIndex((curr) => (curr !== null ? curr + 1 : null));
             return 0;
@@ -129,7 +166,7 @@ export const StoriesSection: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [activeStoryIndex, isPaused, stories.length]);
+  }, [activeStoryIndex, isPaused, stories]);
 
   const handleNextStory = () => {
     if (activeStoryIndex === null) return;
@@ -172,6 +209,50 @@ export const StoriesSection: React.FC = () => {
       openAuthModal();
       return;
     }
+
+    // 1. YouTube Short / Video (Zero storage cost)
+    if (creationMode === 'youtube') {
+      const ytId = extractYouTubeId(youtubeUrl);
+      if (!ytId) {
+        showNotification({
+          title: 'Enlace no válido',
+          message: 'Pega un enlace válido de YouTube Short (ej: youtube.com/shorts/...).',
+          type: 'error',
+        });
+        return;
+      }
+
+      setIsUploading(true);
+      const { error: insertError } = await supabase.from('social_stories').insert({
+        user_id: user.id,
+        media_url: youtubeUrl.trim(),
+        media_type: 'youtube',
+        caption: storyCaption.trim() || null,
+      });
+
+      setIsUploading(false);
+
+      if (insertError) {
+        showNotification({
+          title: 'Error al publicar',
+          message: insertError.message || 'No se pudo guardar la historia en la base de datos.',
+          type: 'error',
+        });
+      } else {
+        setIsCreatingStory(false);
+        setYoutubeUrl('');
+        setStoryCaption('');
+        loadStories();
+        showNotification({
+          title: '¡YouTube Short publicado!',
+          message: 'Tu historia vertical ya está visible para la comunidad sin consumir espacio.',
+          type: 'success',
+        });
+      }
+      return;
+    }
+
+    // 2. Local File Upload to Supabase Storage
     if (!storyFile) return;
 
     setIsUploading(true);
@@ -188,7 +269,7 @@ export const StoriesSection: React.FC = () => {
     if (uploadError) {
       setIsUploading(false);
       showNotification({
-        title: 'Error al subir historia',
+        title: 'Error al subir archivo',
         message: uploadError.message || 'No se pudo subir el archivo de historia.',
         type: 'error',
       });
@@ -276,6 +357,8 @@ export const StoriesSection: React.FC = () => {
           const avatar =
             s.profiles?.avatar_url ||
             `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${s.user_id}`;
+          const isYouTube = s.media_type === 'youtube';
+          const ytId = isYouTube ? extractYouTubeId(s.media_url) : null;
 
           return (
             <div
@@ -287,7 +370,21 @@ export const StoriesSection: React.FC = () => {
               className="relative w-28 sm:w-32 h-44 sm:h-48 rounded-2xl overflow-hidden bg-black border border-white/10 hover:border-primary/80 transition-all duration-300 flex-shrink-0 cursor-pointer group shadow-lg"
             >
               {/* Background vertical preview */}
-              {s.media_type === 'video' ? (
+              {isYouTube ? (
+                <div className="w-full h-full relative">
+                  <img
+                    src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+                    alt={author}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    referrerPolicy="no-referrer"
+                  />
+                  {/* YouTube Short Badge */}
+                  <div className="absolute top-2.5 right-2.5 px-1.5 py-0.5 rounded-full bg-red-600/90 text-white text-[9px] font-black flex items-center gap-1 shadow-lg backdrop-blur-sm">
+                    <YouTubeIcon className="w-2.5 h-2.5" />
+                    <span>SHORT</span>
+                  </div>
+                </div>
+              ) : s.media_type === 'video' ? (
                 <video
                   src={s.media_url}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -397,19 +494,54 @@ export const StoriesSection: React.FC = () => {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveStoryIndex(null)}
-                  className="p-1.5 rounded-full bg-black/50 hover:bg-white/20 text-white transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {stories[activeStoryIndex].media_type === 'youtube' && (
+                    <a
+                      href={stories[activeStoryIndex].media_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-600/80 hover:bg-red-600 text-white text-[11px] font-bold transition-colors shadow-md"
+                      title="Abrir en YouTube"
+                    >
+                      <YouTubeIcon className="w-3.5 h-3.5" />
+                      <span>YouTube</span>
+                    </a>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveStoryIndex(null)}
+                    className="p-1.5 rounded-full bg-black/50 hover:bg-white/20 text-white transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
 
             {/* Media Content */}
             <div className="absolute inset-0 flex items-center justify-center bg-black">
-              {stories[activeStoryIndex].media_type === 'video' ? (
+              {stories[activeStoryIndex].media_type === 'youtube' ? (
+                <div className="w-full h-full relative flex items-center justify-center bg-black overflow-hidden">
+                  {(() => {
+                    const ytId = extractYouTubeId(stories[activeStoryIndex].media_url);
+                    return ytId ? (
+                      <iframe
+                        src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=0&controls=1&loop=1&playlist=${ytId}&modestbranding=1&rel=0`}
+                        title="YouTube Short"
+                        className="w-full h-full object-cover rounded-3xl"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <div className="text-center p-4 text-zinc-400 text-xs">
+                        Video no disponible
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : stories[activeStoryIndex].media_type === 'video' ? (
                 <video
                   src={stories[activeStoryIndex].media_url}
                   className="w-full h-full object-cover"
@@ -426,25 +558,27 @@ export const StoriesSection: React.FC = () => {
               )}
             </div>
 
-            {/* Tap areas left / right for mobile story advance */}
-            <div className="absolute inset-0 z-10 flex">
-              <div
-                className="w-1/2 h-full cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePrevStory();
-                }}
-              />
-              <div
-                className="w-1/2 h-full cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleNextStory();
-                }}
-              />
-            </div>
+            {/* Tap areas left / right for mobile story advance (only if not youtube iframe) */}
+            {stories[activeStoryIndex].media_type !== 'youtube' && (
+              <div className="absolute inset-0 z-10 flex">
+                <div
+                  className="w-1/2 h-full cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePrevStory();
+                  }}
+                />
+                <div
+                  className="w-1/2 h-full cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleNextStory();
+                  }}
+                />
+              </div>
+            )}
 
-            {/* Bottom Footer: Caption & Reactions */}
+            {/* Bottom Footer: Caption & Quick Reactions */}
             <div className="relative z-20 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
               {stories[activeStoryIndex].caption && (
                 <p className="text-sm font-semibold text-white drop-shadow-md mb-3 leading-snug">
@@ -516,7 +650,7 @@ export const StoriesSection: React.FC = () => {
       )}
 
       {/* ------------------------------------------------------------- */}
-      {/* STORY CREATOR MODAL                                            */}
+      {/* STORY CREATOR MODAL WITH YOUTUBE SHORT SUPPORT                */}
       {/* ------------------------------------------------------------- */}
       {isCreatingStory && (
         <div
@@ -527,7 +661,7 @@ export const StoriesSection: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
             className="relative max-w-md w-full bg-[#111116] border border-white/15 rounded-3xl overflow-hidden shadow-2xl p-6"
           >
-            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-4">
+            <div className="flex items-center justify-between pb-3.5 border-b border-white/10 mb-4">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary" />
                 <h3 className="font-black text-lg text-white uppercase tracking-tight">
@@ -543,46 +677,124 @@ export const StoriesSection: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handlePublishStory} className="space-y-4">
-              {/* Media Upload Area */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
+            {/* Mode Selector Tabs: YouTube Short vs File Upload */}
+            <div className="flex rounded-xl bg-black/60 p-1 border border-white/10 mb-4">
+              <button
+                type="button"
+                onClick={() => setCreationMode('youtube')}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                  creationMode === 'youtube'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                <YouTubeIcon className="w-4 h-4" />
+                <span>YouTube Short</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreationMode('upload')}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                  creationMode === 'upload'
+                    ? 'bg-primary text-white shadow-md'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                <Camera className="w-4 h-4" />
+                <span>Subir Archivo</span>
+              </button>
+            </div>
 
-              {storyPreview ? (
-                <div className="relative w-full h-72 rounded-2xl overflow-hidden bg-black border border-white/20 flex items-center justify-center">
-                  {storyFile?.type.startsWith('video/') ? (
-                    <video src={storyPreview} className="w-full h-full object-cover" autoPlay loop muted />
-                  ) : (
-                    <img src={storyPreview} alt="Preview" className="w-full h-full object-cover" />
+            <form onSubmit={handlePublishStory} className="space-y-4">
+              {/* Option A: YouTube Short Mode */}
+              {creationMode === 'youtube' ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                      Enlace de YouTube Short o Video
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="url"
+                        value={youtubeUrl}
+                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        placeholder="https://www.youtube.com/shorts/..."
+                        className="w-full bg-black/60 border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white focus:outline-none focus:border-red-500 transition-colors"
+                      />
+                      {parsedYoutubeId && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 block animate-pulse" />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-zinc-500 mt-1">
+                      Pega cualquier link (ej: youtube.com/shorts/...). No consume almacenamiento y reproduce al instante.
+                    </p>
+                  </div>
+
+                  {/* YouTube Live Thumbnail Preview */}
+                  {parsedYoutubeId && (
+                    <div className="relative w-full h-56 rounded-2xl overflow-hidden bg-black border border-red-500/30 flex items-center justify-center shadow-lg group">
+                      <img
+                        src={`https://img.youtube.com/vi/${parsedYoutubeId}/hqdefault.jpg`}
+                        alt="Preview YouTube Short"
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2">
+                        <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center text-white shadow-xl">
+                          <YouTubeIcon className="w-6 h-6" />
+                        </div>
+                        <span className="px-2.5 py-0.5 rounded-full bg-black/80 text-[11px] font-bold text-white border border-white/10">
+                          Short detectado ✓
+                        </span>
+                      </div>
+                    </div>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStoryFile(null);
-                      setStoryPreview(null);
-                    }}
-                    className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-black/80 hover:bg-red-600 text-white transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
                 </div>
               ) : (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-56 rounded-2xl border-2 border-dashed border-white/20 hover:border-primary bg-black/40 flex flex-col items-center justify-center gap-3 cursor-pointer transition-colors p-4 group"
-                >
-                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                    <Camera className="w-6 h-6" />
-                  </div>
-                  <div className="text-center">
-                    <span className="block text-sm font-bold text-white">Seleccionar Foto o Clip</span>
-                    <span className="block text-xs text-zinc-500 mt-1">Formato vertical 9:16 ideal para móviles</span>
-                  </div>
+                /* Option B: File Upload Mode */
+                <div className="space-y-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+
+                  {storyPreview ? (
+                    <div className="relative w-full h-72 rounded-2xl overflow-hidden bg-black border border-white/20 flex items-center justify-center">
+                      {storyFile?.type.startsWith('video/') ? (
+                        <video src={storyPreview} className="w-full h-full object-cover" autoPlay loop muted />
+                      ) : (
+                        <img src={storyPreview} alt="Preview" className="w-full h-full object-cover" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStoryFile(null);
+                          setStoryPreview(null);
+                        }}
+                        className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-black/80 hover:bg-red-600 text-white transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full h-56 rounded-2xl border-2 border-dashed border-white/20 hover:border-primary bg-black/40 flex flex-col items-center justify-center gap-3 cursor-pointer transition-colors p-4 group"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                        <Camera className="w-6 h-6" />
+                      </div>
+                      <div className="text-center">
+                        <span className="block text-sm font-bold text-white">Seleccionar Foto o Clip</span>
+                        <span className="block text-xs text-zinc-500 mt-1">Formato vertical 9:16 ideal para móviles</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -605,11 +817,22 @@ export const StoriesSection: React.FC = () => {
                 type="submit"
                 variant="primary"
                 size="md"
-                className="w-full"
+                className={`w-full ${creationMode === 'youtube' ? '!bg-red-600 hover:!bg-red-700 !text-white' : ''}`}
                 isLoading={isUploading}
-                disabled={!storyFile || isUploading}
+                disabled={
+                  (creationMode === 'youtube' && !parsedYoutubeId) ||
+                  (creationMode === 'upload' && !storyFile) ||
+                  isUploading
+                }
               >
-                Publicar Historia (24h)
+                {creationMode === 'youtube' ? (
+                  <span className="flex items-center gap-2">
+                    <YouTubeIcon className="w-4 h-4" />
+                    Publicar YouTube Short
+                  </span>
+                ) : (
+                  'Publicar Archivo (24h)'
+                )}
               </Button>
             </form>
           </div>
