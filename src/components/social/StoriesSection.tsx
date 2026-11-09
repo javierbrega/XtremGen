@@ -19,24 +19,14 @@ import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { Button } from '../ui/Base';
+import {
+  parseStreamInfo,
+  getPlatformMeta,
+  YouTubeIcon,
+  extractYouTubeId,
+} from '../../lib/stream-helpers';
 
-// YouTube Official Vector Icon
-export const YouTubeIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-  </svg>
-);
-
-// Helper to extract 11-char YouTube ID from any Shorts / Video / Embed link
-export function extractYouTubeId(url: string | undefined | null): string | null {
-  if (!url) return null;
-  const trimmed = url.trim();
-  const regExp = /(?:youtube\.com\/(?:shorts\/|watch\?v=|v\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-  const match = trimmed.match(regExp);
-  if (match && match[1]) return match[1];
-  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
-  return null;
-}
+export { YouTubeIcon, extractYouTubeId };
 
 export interface StoryItem {
   id: string;
@@ -412,7 +402,7 @@ export const StoriesSection: React.FC = () => {
 
           <div className="h-[32%] flex items-center justify-center pt-2 pb-1.5 px-2 bg-[#12080a]">
             <span className="text-[11px] font-black uppercase tracking-wider text-red-400 text-center leading-tight flex items-center gap-1">
-              🔴 Emitir VIVO
+              🔴 Re-transmitir
             </span>
           </div>
         </div>
@@ -420,8 +410,11 @@ export const StoriesSection: React.FC = () => {
         {/* Grouped Stories: ONE CARD PER USER */}
         {storyGroups.map((group, gIdx) => {
           const displayStory = group.latestStory;
+          const liveStory = group.stories.find((s) => s.media_type === 'live');
+          const isLive = Boolean(liveStory);
+          const liveStreamInfo = liveStory ? parseStreamInfo(liveStory.media_url) : null;
+          const liveMeta = liveStreamInfo ? getPlatformMeta(liveStreamInfo.platform) : null;
           const isYouTube = displayStory.media_type === 'youtube';
-          const isLive = group.stories.some((s) => s.media_type === 'live');
           const ytId = isYouTube ? extractYouTubeId(displayStory.media_url) : null;
           const storyCount = group.stories.length;
 
@@ -462,9 +455,31 @@ export const StoriesSection: React.FC = () => {
                   </div>
                 </div>
               ) : isLive ? (
-                <div className="w-full h-full relative bg-red-950/40 flex items-center justify-center">
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60" />
-                  <Radio className="w-8 h-8 text-red-500 animate-pulse" />
+                <div className={`w-full h-full relative flex items-center justify-center ${liveMeta ? `bg-gradient-to-t ${liveMeta.bgGradient}` : 'bg-red-950/40'}`}>
+                  {liveStreamInfo?.platform === 'youtube' && liveStreamInfo.channelOrId ? (
+                    <img
+                      src={`https://img.youtube.com/vi/${liveStreamInfo.channelOrId}/hqdefault.jpg`}
+                      alt=""
+                      className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-300"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : null}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/60" />
+                  <div className="relative z-10 flex flex-col items-center gap-1.5 p-2 text-center">
+                    {liveMeta ? (
+                      <span
+                        className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-lg"
+                        style={{ backgroundColor: liveMeta.color }}
+                      >
+                        <liveMeta.Icon className="w-4 h-4" />
+                      </span>
+                    ) : (
+                      <Radio className="w-7 h-7 text-red-500 animate-pulse" />
+                    )}
+                    <span className="text-[10px] font-black text-white uppercase tracking-wider drop-shadow-md line-clamp-1">
+                      {liveMeta ? liveMeta.name : 'EN VIVO'}
+                    </span>
+                  </div>
                   <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-red-600 text-white font-black text-[9px] uppercase tracking-wider flex items-center gap-1 shadow-lg animate-pulse">
                     <span className="w-1.5 h-1.5 rounded-full bg-white block" />
                     LIVE
