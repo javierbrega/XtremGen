@@ -15,6 +15,9 @@ import {
   Send,
   Eye,
   Sparkles,
+  Film,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react';
 import {
   parseStreamInfo,
@@ -77,6 +80,12 @@ export const LiveStreamPlayerModal: React.FC<LiveStreamPlayerModalProps> = ({
   // Link copy
   const [copied, setCopied] = useState(false);
 
+  // Cinema Mode / Hide Chat toggle
+  const [isCinemaMode, setIsCinemaMode] = useState(false);
+
+  // Dual Chat Tab: 'xg' (Community Chat) vs 'platform' (Twitch / Kick / YouTube)
+  const [activeChatTab, setActiveChatTab] = useState<'xg' | 'platform'>('xg');
+
   // Chat comments
   const [comments, setComments] = useState<StreamComment[]>([
     {
@@ -129,6 +138,22 @@ export const LiveStreamPlayerModal: React.FC<LiveStreamPlayerModalProps> = ({
   const streamerAvatar =
     stream.profiles?.avatar_url ||
     `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${stream.user_id}`;
+
+  const getPlatformChatUrl = () => {
+    if (!streamInfo.channelOrId) return null;
+    const parentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    if (streamInfo.platform === 'twitch') {
+      return `https://www.twitch.tv/embed/${streamInfo.channelOrId}/chat?parent=${parentHost}&parent=localhost&parent=xtremgen.vercel.app&darkpopout`;
+    }
+    if (streamInfo.platform === 'kick') {
+      return `https://kick.com/${streamInfo.channelOrId}/chatroom`;
+    }
+    if (streamInfo.platform === 'youtube') {
+      return `https://www.youtube.com/live_chat?v=${streamInfo.channelOrId}&embed_domain=${parentHost}`;
+    }
+    return null;
+  };
+  const platformChatUrl = getPlatformChatUrl();
 
   const handleToggleLike = () => {
     if (!user) {
@@ -214,7 +239,9 @@ export const LiveStreamPlayerModal: React.FC<LiveStreamPlayerModalProps> = ({
       {/* Main Theater Container */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-6xl max-h-[94vh] bg-[#0c0c10] border border-white/15 rounded-3xl overflow-hidden shadow-[0_0_90px_rgba(230,0,43,0.3)] flex flex-col"
+        className={`relative w-full ${
+          isCinemaMode ? 'max-w-7xl' : 'max-w-6xl'
+        } max-h-[94vh] bg-[#0c0c10] border border-white/15 rounded-3xl overflow-hidden shadow-[0_0_90px_rgba(230,0,43,0.3)] flex flex-col transition-all duration-300`}
       >
         {/* Streamer Top Bar */}
         <div className="px-4 sm:px-6 py-3.5 bg-gradient-to-r from-black/90 via-[#14141c] to-black/90 border-b border-white/10 flex items-center justify-between gap-3 flex-wrap">
@@ -252,8 +279,9 @@ export const LiveStreamPlayerModal: React.FC<LiveStreamPlayerModalProps> = ({
             </div>
           </div>
 
-          {/* Platform Informational Badge: STRICTLY NON-LINK TO RETAIN USER ON XTREMGEN */}
+          {/* Controls: Platform Badge, Viewers, and Modo Cine Toggle */}
           <div className="flex items-center gap-2">
+            {/* Platform Informational Badge: STRICTLY NON-LINK TO RETAIN USER ON XTREMGEN */}
             <div
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white text-xs font-black shadow-lg border border-white/20 select-none"
               style={{ backgroundColor: streamMeta.color }}
@@ -267,13 +295,50 @@ export const LiveStreamPlayerModal: React.FC<LiveStreamPlayerModalProps> = ({
               <Eye className="w-3.5 h-3.5 text-red-400" />
               <span className="font-bold">En Vivo</span>
             </div>
+
+            {/* Cinema Mode Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsCinemaMode(!isCinemaMode)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all border shadow-lg ${
+                isCinemaMode
+                  ? 'bg-primary border-primary text-white shadow-[0_0_15px_rgba(230,0,43,0.5)]'
+                  : 'bg-white/10 hover:bg-white/15 border-white/15 text-zinc-200'
+              }`}
+              title={isCinemaMode ? 'Mostrar Chat' : 'Activar Modo Cine (Ocultar Chat)'}
+            >
+              <Film className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {isCinemaMode ? 'Salir de Modo Cine' : 'Modo Cine'}
+              </span>
+              <span className="sm:hidden">
+                {isCinemaMode ? 'Chat' : 'Cine'}
+              </span>
+            </button>
           </div>
         </div>
 
-        {/* Core Content: 16:9 Video Player + Live Community Chat */}
+        {/* Core Content: 16:9 Video Player + Live Community/Platform Chat */}
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 min-h-0 overflow-hidden">
           {/* Left/Center: Video Player Stage */}
-          <div className="lg:col-span-8 xl:col-span-9 bg-black flex flex-col justify-center relative min-h-[260px] sm:min-h-[420px] lg:min-h-[520px]">
+          <div
+            className={`${
+              isCinemaMode ? 'lg:col-span-12 xl:col-span-12' : 'lg:col-span-8 xl:col-span-9'
+            } bg-black flex flex-col justify-center relative min-h-[260px] sm:min-h-[420px] lg:min-h-[520px] transition-all duration-300`}
+          >
+            {/* Cinema mode floating re-open chat button */}
+            {isCinemaMode && (
+              <button
+                type="button"
+                onClick={() => setIsCinemaMode(false)}
+                className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/80 hover:bg-black/95 text-white text-xs font-bold border border-white/20 shadow-xl backdrop-blur-md transition-transform hover:scale-105"
+                title="Mostrar Chat"
+              >
+                <PanelRightOpen className="w-3.5 h-3.5 text-primary" />
+                <span>Mostrar Chat</span>
+              </button>
+            )}
+
             {streamInfo.canEmbed && streamInfo.embedUrl ? (
               <div className="w-full h-full relative aspect-video flex items-center justify-center bg-black">
                 <iframe
@@ -375,82 +440,140 @@ export const LiveStreamPlayerModal: React.FC<LiveStreamPlayerModalProps> = ({
             </div>
           </div>
 
-          {/* Right: Live Community Chat / Cheers */}
-          <div className="lg:col-span-4 xl:col-span-3 bg-[#13131a] border-t lg:border-t-0 lg:border-l border-white/10 flex flex-col h-[280px] lg:h-auto min-h-0">
-            {/* Chat Header */}
-            <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between bg-black/40">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="w-4 h-4 text-primary" />
-                <span className="text-xs font-black uppercase tracking-wider text-white">
-                  Chat de la Comunidad
-                </span>
-              </div>
-              <span className="text-[10px] font-mono font-bold text-zinc-400">
-                {comments.length} mensajes
-              </span>
-            </div>
+          {/* Right: Live Chat (XtremGen Community or Official Platform) */}
+          {!isCinemaMode && (
+            <div className="lg:col-span-4 xl:col-span-3 bg-[#13131a] border-t lg:border-t-0 lg:border-l border-white/10 flex flex-col h-[320px] lg:h-auto min-h-0">
+              {/* Chat Header with Dual Tabs and Cinema Mode Toggle */}
+              <div className="px-3 py-2.5 border-b border-white/10 flex items-center justify-between bg-black/40 gap-2">
+                <div className="flex items-center gap-1 bg-black/50 p-1 rounded-xl border border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setActiveChatTab('xg')}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                      activeChatTab === 'xg'
+                        ? 'bg-primary text-white shadow-md'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>Chat XG</span>
+                  </button>
 
-            {/* Host Announcement banner in chat */}
-            {isHost && hostUsername && (
-              <div className="m-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2 text-xs text-amber-200 shadow-inner">
-                <span className="text-base shrink-0">🤝</span>
-                <span className="text-[11px] leading-tight">
-                  <strong className="text-amber-300">@{hostUsername}</strong> está hosteando este stream. ¡Apoya con GG y comentarios!
-                </span>
-              </div>
-            )}
-
-            {/* Chat Feed */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-2.5 no-scrollbar">
-              {comments.map((msg) => (
-                <div key={msg.id} className="flex items-start gap-2 text-xs">
-                  <img
-                    src={msg.avatar}
-                    alt={msg.author}
-                    className="w-6 h-6 rounded-full object-cover border border-white/15 flex-shrink-0 mt-0.5"
-                  />
-                  <div className="flex-1 min-w-0 bg-white/5 rounded-xl px-2.5 py-1.5 border border-white/5">
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-bold text-zinc-200 truncate text-[11px]">
-                        {msg.author}
-                      </span>
-                      <span className="text-[9px] text-zinc-500 font-mono">
-                        {new Date(msg.created_at).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                    <p className="text-zinc-300 text-xs mt-0.5 break-words">
-                      {msg.content}
-                    </p>
-                  </div>
+                  {platformChatUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveChatTab('platform')}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                        activeChatTab === 'platform'
+                          ? 'text-white shadow-md'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                      style={
+                        activeChatTab === 'platform'
+                          ? { backgroundColor: streamMeta.color }
+                          : {}
+                      }
+                      title={`Chat oficial de ${streamMeta.name}`}
+                    >
+                      <streamMeta.Icon className="w-3.5 h-3.5" />
+                      <span>{streamMeta.name}</span>
+                    </button>
+                  )}
                 </div>
-              ))}
-            </div>
 
-            {/* Chat Input */}
-            <form onSubmit={handleAddComment} className="p-3 bg-black/60 border-t border-white/10">
-              <div className="flex items-center gap-1.5 bg-[#181824] border border-white/15 rounded-xl px-3 py-1.5 focus-within:border-primary transition-colors">
-                <input
-                  type="text"
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder={
-                    user ? 'Envía un mensaje al directo...' : 'Inicia sesión para chatear...'
-                  }
-                  className="w-full bg-transparent text-xs text-white placeholder:text-zinc-500 focus:outline-none"
-                />
+                {/* Hide Chat / Enter Cinema Mode */}
                 <button
-                  type="submit"
-                  disabled={!newComment.trim()}
-                  className="p-1 rounded-lg bg-primary hover:bg-primary/90 text-white disabled:opacity-30 transition-all flex-shrink-0"
+                  type="button"
+                  onClick={() => setIsCinemaMode(true)}
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Ocultar chat (Modo Cine)"
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  <PanelRightClose className="w-4 h-4" />
                 </button>
               </div>
-            </form>
-          </div>
+
+              {/* Chat Content Body */}
+              {activeChatTab === 'platform' && platformChatUrl ? (
+                /* Official Platform Embedded Chat (Twitch, Kick, YouTube) */
+                <div className="flex-1 min-h-0 relative bg-black flex flex-col">
+                  <iframe
+                    src={platformChatUrl}
+                    title={`Chat oficial de ${streamMeta.name}`}
+                    className="w-full h-full border-0 flex-1"
+                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
+                  />
+                  <div className="px-3 py-2 bg-black/90 border-t border-white/10 text-[10px] text-zinc-400 text-center flex items-center justify-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
+                    <span>Chat directo de {streamMeta.name} integrado sin salir de XtremGen</span>
+                  </div>
+                </div>
+              ) : (
+                /* XtremGen Community Chat */
+                <>
+                  {/* Host Announcement banner in chat */}
+                  {isHost && hostUsername && (
+                    <div className="m-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2 text-xs text-amber-200 shadow-inner">
+                      <span className="text-base shrink-0">🤝</span>
+                      <span className="text-[11px] leading-tight">
+                        <strong className="text-amber-300">@{hostUsername}</strong> está hosteando este stream. ¡Apoya con GG y comentarios!
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Chat Feed */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2.5 no-scrollbar">
+                    {comments.map((msg) => (
+                      <div key={msg.id} className="flex items-start gap-2 text-xs">
+                        <img
+                          src={msg.avatar}
+                          alt={msg.author}
+                          className="w-6 h-6 rounded-full object-cover border border-white/15 flex-shrink-0 mt-0.5"
+                        />
+                        <div className="flex-1 min-w-0 bg-white/5 rounded-xl px-2.5 py-1.5 border border-white/5">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold text-zinc-200 truncate text-[11px]">
+                              {msg.author}
+                            </span>
+                            <span className="text-[9px] text-zinc-500 font-mono">
+                              {new Date(msg.created_at).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                          <p className="text-zinc-300 text-xs mt-0.5 break-words">
+                            {msg.content}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Chat Input */}
+                  <form onSubmit={handleAddComment} className="p-3 bg-black/60 border-t border-white/10">
+                    <div className="flex items-center gap-1.5 bg-[#181824] border border-white/15 rounded-xl px-3 py-1.5 focus-within:border-primary transition-colors">
+                      <input
+                        type="text"
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder={
+                          user ? 'Envía un mensaje al directo...' : 'Inicia sesión para chatear...'
+                        }
+                        className="w-full bg-transparent text-xs text-white placeholder:text-zinc-500 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!newComment.trim()}
+                        className="p-1 rounded-lg bg-primary hover:bg-primary/90 text-white disabled:opacity-30 transition-all flex-shrink-0"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
