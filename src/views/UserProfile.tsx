@@ -8,6 +8,8 @@ import { Button, Badge, Card } from '../components/ui/Base';
 import { supabase } from '../lib/supabase/client';
 import { useNotification } from '../context/NotificationContext';
 import { Link } from '../lib/router';
+import { GamingIdentitiesCard } from '../components/profile/GamingIdentitiesCard';
+import { getGamingConnections, GamingConnections } from '../lib/gaming-connections';
 
 export const UserProfile = () => {
   const { profile, logout, openAuthModal, updateProfile } = useAuth();
@@ -18,19 +20,31 @@ export const UserProfile = () => {
   const [selectedMedia, setSelectedMedia] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'media' | 'applications'>('media');
   const [myClan, setMyClan] = useState<any | null>(null);
+  const [gamingConns, setGamingConns] = useState<GamingConnections>({});
   const [isEditing, setIsEditing] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newBio, setNewBio] = useState('');
+  const [demoActive, setDemoActive] = useState(false);
+
+  const activeProfile = profile || (demoActive ? {
+    id: 'demo-gamer',
+    username: 'GhostShadow',
+    role: 'LEADER' as const,
+    bio: 'Entry Fragger | Creador de contenido y streamer oficial del Clan XtremGen.',
+    avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=GhostShadow',
+    clan_id: 'clan-1',
+  } : null);
 
   useEffect(() => {
-    if (!profile?.id) return;
-    setNewUsername(profile.username);
-    setNewBio(profile.bio || '');
+    const prof = activeProfile;
+    if (!prof?.id) return;
+    setNewUsername(prof.username);
+    setNewBio(prof.bio || '');
 
     supabase
       .from('clan_applications')
       .select('*,clans(name,logo_url)')
-      .eq('user_id', profile.id)
+      .eq('user_id', prof.id)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         if (Array.isArray(data)) setApplications(data);
@@ -40,7 +54,7 @@ export const UserProfile = () => {
     supabase
       .from('social_posts')
       .select('id,content,media_url,created_at,game_tag')
-      .eq('author_id', profile.id)
+      .eq('author_id', prof.id)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         if (Array.isArray(data)) {
@@ -48,11 +62,11 @@ export const UserProfile = () => {
         }
       });
 
-    if (profile.clan_id) {
+    if (prof.clan_id) {
       supabase
         .from('clans')
         .select('*')
-        .eq('id', profile.clan_id)
+        .eq('id', prof.clan_id)
         .single()
         .then(({ data }) => {
           if (data) setMyClan(data);
@@ -60,9 +74,19 @@ export const UserProfile = () => {
     } else {
       setMyClan(null);
     }
-  }, [profile]);
 
-  if (!profile) {
+    // Load Gaming Identities
+    setGamingConns(getGamingConnections(prof.id));
+    const handleConnUpdate = (e: any) => {
+      setGamingConns(e.detail || getGamingConnections(prof.id));
+    };
+    window.addEventListener('xg-gaming-connections-updated', handleConnUpdate);
+    return () => {
+      window.removeEventListener('xg-gaming-connections-updated', handleConnUpdate);
+    };
+  }, [profile, demoActive]);
+
+  if (!activeProfile) {
     return (
       <div className="min-h-[65vh] flex flex-col items-center justify-center gap-4 text-zinc-400 px-4 text-center">
         <Sparkles className="w-12 h-12 text-primary" />
@@ -70,23 +94,30 @@ export const UserProfile = () => {
         <p className="text-sm max-w-md">
           Iniciá sesión con Google o con tu cuenta XG para gestionar tu perfil competitivo, tus postulaciones en The Draft y tu Clan.
         </p>
-        <Button variant="primary" onClick={openAuthModal}>
-          Iniciar Sesión / Registrarse
-        </Button>
+        <div className="flex items-center gap-3 flex-wrap justify-center">
+          <Button variant="primary" onClick={openAuthModal}>
+            Iniciar Sesión / Registrarse
+          </Button>
+          <Button variant="outline" onClick={() => setDemoActive(true)}>
+            🎮 Modo Vista Previa Gamer
+          </Button>
+        </div>
       </div>
     );
   }
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateProfile({
-      username: newUsername.trim() || profile.username,
-      bio: newBio.trim(),
-    });
+    if (profile) {
+      await updateProfile({
+        username: newUsername.trim() || activeProfile.username,
+        bio: newBio.trim(),
+      });
+    }
     setIsEditing(false);
     showNotification({
       title: '¡Perfil Actualizado!',
-      message: 'Tus cambios se guardaron en la tabla public.profiles de Supabase.',
+      message: 'Tus cambios se guardaron correctamente.',
       type: 'success',
     });
   };
@@ -99,22 +130,37 @@ export const UserProfile = () => {
 
           <div className="relative">
             <img
-              src={profile.avatar_url}
-              alt={profile.username}
+              src={activeProfile.avatar_url}
+              alt={activeProfile.username}
               className="w-32 h-32 rounded-2xl border-2 border-primary/50 object-cover"
               referrerPolicy="no-referrer"
             />
           </div>
 
           <div className="flex-1 text-center md:text-left relative z-10">
-            <div className="flex flex-col md:flex-row md:items-center gap-4 mb-2">
-              <h1 className="text-4xl font-black tracking-tight">{profile.username}</h1>
+            <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2 flex-wrap justify-center md:justify-start">
+              <h1 className="text-4xl font-black tracking-tight">{activeProfile.username}</h1>
               <Badge variant="primary" className="self-center md:self-auto">
-                {profile.role}
+                {activeProfile.role}
               </Badge>
+              {gamingConns.twitch?.connected && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-bold font-mono shadow-sm">
+                  <span>🟣 @{gamingConns.twitch.username}</span>
+                </span>
+              )}
+              {gamingConns.kick?.connected && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00E701]/20 text-[#00E701] border border-[#00E701]/40 text-xs font-bold font-mono shadow-sm">
+                  <span>🟢 @{gamingConns.kick.username}</span>
+                </span>
+              )}
+              {gamingConns.discord?.connected && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#5865F2]/20 text-[#8ea1e1] border border-[#5865F2]/40 text-xs font-bold font-mono shadow-sm">
+                  <span>🔵 @{gamingConns.discord.username}</span>
+                </span>
+              )}
             </div>
             <p className="text-zinc-400 font-medium mb-6">
-              {profile.bio || 'Jugador competitivo registrado en Supabase.'}
+              {activeProfile.bio || 'Jugador competitivo registrado en Supabase.'}
             </p>
 
             <div className="flex flex-wrap justify-center md:justify-start gap-3">
@@ -315,6 +361,11 @@ export const UserProfile = () => {
                 </div>
               )}
             </section>
+
+            {/* Gaming Identities & Linked Accounts (Twitch, Kick, Discord) */}
+            <section>
+              <GamingIdentitiesCard userId={activeProfile.id} />
+            </section>
           </div>
         </div>
       </div>
@@ -331,7 +382,7 @@ export const UserProfile = () => {
           >
             <div className="flex items-center justify-between p-3.5 border-b border-white/10 bg-black/40">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-sm text-white">{profile.username}</span>
+                <span className="font-bold text-sm text-white">{activeProfile.username}</span>
                 {selectedMedia.game_tag && (
                   <Badge variant="primary" className="text-[10px]">{selectedMedia.game_tag}</Badge>
                 )}
