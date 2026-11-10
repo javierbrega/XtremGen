@@ -45,9 +45,11 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
   onClose,
   onStreamStarted,
 }) => {
-  const { user, openAuthModal } = useAuth();
+  const { user, profile, openAuthModal } = useAuth();
   const { showNotification } = useNotification();
 
+  const [streamMode, setStreamMode] = useState<'own' | 'host'>('own');
+  const [hostTargetName, setHostTargetName] = useState('');
   const [platform, setPlatform] = useState<StreamPlatform>('youtube');
   const [streamUrl, setStreamUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -98,7 +100,9 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
 
     try {
       const finalUrl = parsedStream.originalUrl || streamUrl.trim();
-      const captionText = `🔴 [${currentMeta.badge}] ${title.trim()} [${gameTag}]`;
+      const hostPrefix = streamMode === 'host' ? `[HOST:@${profile?.username || 'Gamer'}] ` : '';
+      const streamerLabel = streamMode === 'host' && hostTargetName.trim() ? ` • Stream: ${hostTargetName.trim()}` : '';
+      const captionText = `🔴 ${hostPrefix}[${currentMeta.badge}] ${title.trim()}${streamerLabel} [${gameTag}]`;
 
       // Publish live story to social_stories
       const { data, error } = await supabase
@@ -119,12 +123,20 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
       setIsStarting(false);
 
       if (onStreamStarted) {
-        onStreamStarted(data);
+        onStreamStarted({
+          ...data,
+          is_host: streamMode === 'host',
+          host_username: profile?.username || 'Gamer',
+          original_streamer: hostTargetName.trim() || undefined,
+        });
       }
 
       showNotification({
-        title: `🔴 ¡EN VIVO con ${currentMeta.name}!`,
-        message: 'Tu directo ya aparece en el carrusel para toda la comunidad.',
+        title: streamMode === 'host' ? '🤝 ¡Hosteando directo con éxito!' : `🔴 ¡EN VIVO con ${currentMeta.name}!`,
+        message:
+          streamMode === 'host'
+            ? `Estás compartiendo el stream de ${hostTargetName.trim() || 'tu creador'} con la comunidad.`
+            : 'Tu directo ya aparece en el carrusel para toda la comunidad.',
         type: 'success',
       });
     } catch (err: any) {
@@ -245,10 +257,64 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
         ) : (
           /* CONFIGURATION SCREEN */
           <form onSubmit={handleStartLive} className="space-y-4">
+            {/* Stream Mode Switcher: Mi Propio Directo vs Hostear a un Streamer */}
+            <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-black/60 border border-white/10">
+              <button
+                type="button"
+                onClick={() => setStreamMode('own')}
+                className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                  streamMode === 'own'
+                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Radio className="w-3.5 h-3.5" />
+                <span>Mi Directo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStreamMode('host')}
+                className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                  streamMode === 'host'
+                    ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/30'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <span>🤝</span>
+                <span>Hostear a un Creador</span>
+              </button>
+            </div>
+
+            {/* Host Mode Informational Banner */}
+            {streamMode === 'host' && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex items-start gap-2 animate-in fade-in duration-150">
+                <span className="text-base shrink-0">🤝</span>
+                <p className="leading-snug">
+                  <strong>Modo Host / Watch Party:</strong> Comparte el directo de un clanmate o tu streamer favorito. Aparecerá en el panel de XtremGen con el sello <strong>🤝 Hosteado por @{profile?.username || 'ti'}</strong> y toda la comunidad podrá chatear junta.
+                </p>
+              </div>
+            )}
+
+            {/* Host Target Streamer Name (Only in Host Mode) */}
+            {streamMode === 'host' && (
+              <div className="animate-in fade-in duration-150">
+                <label className="block text-xs font-bold text-amber-300 uppercase tracking-wider mb-1.5">
+                  ¿A quién vas a hostear? (Streamer o Clanmate)
+                </label>
+                <input
+                  type="text"
+                  value={hostTargetName}
+                  onChange={(e) => setHostTargetName(e.target.value)}
+                  placeholder="Ej: Shroud, JaviXG, Ibai, RoninSniper..."
+                  className="w-full bg-black/60 border border-amber-500/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 placeholder:text-zinc-600 font-bold"
+                />
+              </div>
+            )}
+
             {/* Platform Selector Grid */}
             <div>
               <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">
-                Selecciona la Plataforma
+                Plataforma del Directo
               </label>
               <div className="grid grid-cols-5 gap-1.5 p-1 rounded-2xl bg-black/60 border border-white/10">
                 {PLATFORMS.map((p) => {
@@ -286,7 +352,7 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
                   <currentMeta.Icon className="w-3.5 h-3.5" />
-                  <span>Enlace o Usuario ({currentMeta.name})</span>
+                  <span>Enlace del Directo ({currentMeta.name})</span>
                 </label>
                 {parsedStream.platform === platform && parsedStream.channelOrId && (
                   <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
@@ -306,13 +372,17 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
             {/* Title Input */}
             <div>
               <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
-                Título del Directo en XtremGen
+                {streamMode === 'host' ? 'Mensaje o Título de la Watch Party' : 'Título del Directo en XtremGen'}
               </label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ej: Rankeando en BO7 en vivo 🎯 / Clutch Time"
+                placeholder={
+                  streamMode === 'host'
+                    ? 'Ej: ¡Apoyando a nuestro clan en semifinales! 🏆 / Watch Party'
+                    : 'Ej: Rankeando en BO7 en vivo 🎯 / Clutch Time'
+                }
                 className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-red-500 placeholder:text-zinc-600"
               />
             </div>
@@ -338,10 +408,10 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
             </div>
 
             {/* Info notice */}
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-[11px] text-zinc-300 flex items-start gap-2">
-              <Sparkles className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <span>
-                <strong>Multi-Streaming Comunitario:</strong> Tu directo de {currentMeta.name} se re-transmite en tiempo real para todos los usuarios de XtremGen con reproductor integrado. Cero costo de almacenamiento.
+                <strong>Multi-Streaming y Hosting Comunitario:</strong> Los streams se reproducen dentro de XtremGen para retener a los usuarios en tu plataforma mientras apoyan a los streamers con comentarios y reacciones.
               </span>
             </div>
 
@@ -350,12 +420,25 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
               type="submit"
               variant="primary"
               size="md"
-              className="w-full !bg-red-600 hover:!bg-red-700 !text-white flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 font-black tracking-wide"
+              className={`w-full flex items-center justify-center gap-2 shadow-lg font-black tracking-wide ${
+                streamMode === 'host'
+                  ? '!bg-amber-500 hover:!bg-amber-600 !text-black shadow-amber-500/20'
+                  : '!bg-red-600 hover:!bg-red-700 !text-white shadow-red-600/20'
+              }`}
               isLoading={isStarting}
               disabled={isStarting}
             >
-              <Radio className="w-4 h-4" />
-              Iniciar Re-transmisión En Vivo
+              {streamMode === 'host' ? (
+                <>
+                  <span>🤝</span>
+                  <span>Hostear Directo en XtremGen</span>
+                </>
+              ) : (
+                <>
+                  <Radio className="w-4 h-4" />
+                  <span>Iniciar Re-transmisión En Vivo</span>
+                </>
+              )}
             </Button>
           </form>
         )}

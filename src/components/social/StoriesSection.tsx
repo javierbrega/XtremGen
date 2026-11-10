@@ -25,6 +25,7 @@ import {
   getPlatformMeta,
   YouTubeIcon,
   extractYouTubeId,
+  parseLiveCaption,
 } from '../../lib/stream-helpers';
 
 export { YouTubeIcon, extractYouTubeId };
@@ -526,16 +527,29 @@ export const StoriesSection: React.FC = () => {
               </div>
 
               {/* Bottom username and caption preview */}
-              <div className="absolute bottom-2 left-2 right-2">
-                <span className="block text-xs font-bold text-white truncate drop-shadow-md">
-                  {group.username}
-                </span>
-                {displayStory.caption && (
-                  <p className="text-[10px] text-zinc-300 truncate drop-shadow font-medium">
-                    {displayStory.caption}
-                  </p>
-                )}
-              </div>
+              {(() => {
+                const hostInfo = isLive ? parseLiveCaption(displayStory.caption) : null;
+                const cleanCap = hostInfo?.cleanCaption || displayStory.caption;
+                return (
+                  <div className="absolute bottom-2 left-2 right-2">
+                    <div className="flex items-center gap-1">
+                      <span className="block text-xs font-bold text-white truncate drop-shadow-md">
+                        {group.username}
+                      </span>
+                      {hostInfo?.isHost && (
+                        <span className="text-[8px] px-1 py-[0.5px] rounded bg-amber-500/25 text-amber-300 font-bold border border-amber-500/35 uppercase">
+                          HOST
+                        </span>
+                      )}
+                    </div>
+                    {cleanCap && (
+                      <p className="text-[10px] text-zinc-300 truncate drop-shadow font-medium">
+                        {cleanCap}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

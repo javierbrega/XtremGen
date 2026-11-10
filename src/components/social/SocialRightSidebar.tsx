@@ -13,6 +13,7 @@ import {
   YouTubeIcon,
   TwitchIcon,
   KickIcon,
+  parseLiveCaption,
 } from '../../lib/stream-helpers';
 import {
   LiveStreamPlayerModal,
@@ -28,8 +29,11 @@ const SEED_SIDEBAR_LIVES: LiveStreamData[] = [
     media_url: 'https://twitch.tv/shroud',
     caption: '🔴 Rankeando en Search & Destroy BO7',
     created_at: new Date().toISOString(),
+    is_host: true,
+    host_username: 'JaviXG',
+    original_streamer: 'Shroud',
     profiles: {
-      username: 'ShroudXG',
+      username: 'Shroud',
       avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=ShroudXG',
     },
   },
@@ -50,9 +54,12 @@ const SEED_SIDEBAR_LIVES: LiveStreamData[] = [
     media_url: 'https://kick.com/xqc',
     caption: '🔴 Watch Party XtremGen Gaming Nights',
     created_at: new Date().toISOString(),
+    is_host: true,
+    host_username: 'CyberDrop',
+    original_streamer: 'xQc',
     profiles: {
-      username: 'CyberDrop',
-      avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=CyberDrop',
+      username: 'xQc',
+      avatar_url: 'https://api.dicebear.com/9.x/bottts-neutral/svg?seed=xQc',
     },
   },
 ];
@@ -152,7 +159,10 @@ export const SocialRightSidebar: React.FC = () => {
           {liveStreams.map((live) => {
             const streamInfo = parseStreamInfo(live.media_url);
             const meta = getPlatformMeta(streamInfo.platform);
-            const streamerName = live.profiles?.username || 'Streamer XG';
+            const hostInfo = parseLiveCaption(live.caption);
+            const isHost = Boolean(live.is_host || hostInfo.isHost);
+            const hostUsername = live.host_username || hostInfo.hostUsername;
+            const streamerName = live.original_streamer || live.profiles?.username || 'Streamer XG';
             const streamerAvatar =
               live.profiles?.avatar_url ||
               `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${live.user_id}`;
@@ -181,13 +191,18 @@ export const SocialRightSidebar: React.FC = () => {
 
                   {/* Channel & Stream Info */}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-black text-xs text-white truncate group-hover:text-red-400 transition-colors">
                         {streamerName}
                       </span>
+                      {isHost && hostUsername && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-[0.5px] rounded bg-amber-500/20 border border-amber-500/40 text-[9px] font-black text-amber-300 uppercase tracking-tight shadow-sm">
+                          <span>🤝 Host @{hostUsername}</span>
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] text-zinc-300 truncate font-medium">
-                      {live.caption || 'Transmitiendo en tiempo real'}
+                      {hostInfo.cleanCaption || live.caption || 'Transmitiendo en tiempo real'}
                     </p>
                   </div>
                 </div>

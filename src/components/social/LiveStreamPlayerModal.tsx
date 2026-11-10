@@ -20,6 +20,7 @@ import {
   parseStreamInfo,
   getPlatformMeta,
   StreamPlatform,
+  parseLiveCaption,
 } from '../../lib/stream-helpers';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -31,6 +32,9 @@ export interface LiveStreamData {
   media_url: string;
   caption?: string;
   created_at: string;
+  is_host?: boolean;
+  host_username?: string;
+  original_streamer?: string;
   profiles?: {
     username: string;
     avatar_url: string;
@@ -118,7 +122,10 @@ export const LiveStreamPlayerModal: React.FC<LiveStreamPlayerModalProps> = ({
 
   const streamInfo = parseStreamInfo(stream.media_url);
   const streamMeta = getPlatformMeta(streamInfo.platform);
-  const streamerName = stream.profiles?.username || 'Streamer XG';
+  const hostInfo = parseLiveCaption(stream.caption);
+  const isHost = Boolean(stream.is_host || hostInfo.isHost);
+  const hostUsername = stream.host_username || hostInfo.hostUsername;
+  const streamerName = stream.original_streamer || stream.profiles?.username || 'Streamer XG';
   const streamerAvatar =
     stream.profiles?.avatar_url ||
     `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${stream.user_id}`;
@@ -225,7 +232,7 @@ export const LiveStreamPlayerModal: React.FC<LiveStreamPlayerModalProps> = ({
             </div>
 
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm sm:text-base font-black text-white">
                   {streamerName}
                 </h3>
@@ -233,9 +240,14 @@ export const LiveStreamPlayerModal: React.FC<LiveStreamPlayerModalProps> = ({
                   <span className="w-1.5 h-1.5 rounded-full bg-white block" />
                   EN DIRECTO
                 </span>
+                {isHost && hostUsername && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/25 to-yellow-500/25 border border-amber-500/40 text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-sm">
+                    <span>🤝 Hosteado por @{hostUsername}</span>
+                  </span>
+                )}
               </div>
               <p className="text-xs text-zinc-400 truncate max-w-xs sm:max-w-md">
-                {stream.caption || 'Transmitiendo en tiempo real para la comunidad XtremGen'}
+                {hostInfo.cleanCaption || stream.caption || 'Transmitiendo en tiempo real para la comunidad XtremGen'}
               </p>
             </div>
           </div>
@@ -377,6 +389,16 @@ export const LiveStreamPlayerModal: React.FC<LiveStreamPlayerModalProps> = ({
                 {comments.length} mensajes
               </span>
             </div>
+
+            {/* Host Announcement banner in chat */}
+            {isHost && hostUsername && (
+              <div className="m-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2 text-xs text-amber-200 shadow-inner">
+                <span className="text-base shrink-0">🤝</span>
+                <span className="text-[11px] leading-tight">
+                  <strong className="text-amber-300">@{hostUsername}</strong> está hosteando este stream. ¡Apoya con GG y comentarios!
+                </span>
+              </div>
+            )}
 
             {/* Chat Feed */}
             <div className="flex-1 overflow-y-auto p-3 space-y-2.5 no-scrollbar">

@@ -255,3 +255,23 @@ export function getPlatformMeta(platform: StreamPlatform) {
       };
   }
 }
+
+/**
+ * Helper to parse hosted stream metadata from caption
+ * Syntax: 🔴 [HOST:@Username] [TWITCH] Caption text
+ */
+export function parseLiveCaption(caption?: string): {
+  isHost: boolean;
+  hostUsername: string | null;
+  cleanCaption: string;
+} {
+  if (!caption) return { isHost: false, hostUsername: null, cleanCaption: '' };
+  const hostMatch = caption.match(/\[HOST:@([^\]]+)\]/i);
+  if (hostMatch) {
+    const hostUsername = hostMatch[1];
+    const cleanCaption = caption.replace(/\[HOST:@[^\]]+\]\s*/i, '').trim();
+    return { isHost: true, hostUsername, cleanCaption };
+  }
+  return { isHost: false, hostUsername: null, cleanCaption: caption };
+}
+
