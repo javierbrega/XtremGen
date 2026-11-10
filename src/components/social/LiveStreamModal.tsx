@@ -9,6 +9,8 @@ import {
   StopCircle,
   Flame,
   CheckCircle2,
+  ArrowLeft,
+  Minimize2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
@@ -163,11 +165,46 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
     });
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    if (isLive) {
+      return typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              className="fixed bottom-4 right-4 z-[9990] p-3 rounded-2xl bg-[#121218]/95 border border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.4)] backdrop-blur-md flex items-center gap-3 animate-in slide-in-from-bottom-4 duration-300"
+            >
+              <div className="relative w-8 h-8 rounded-full p-[2px] bg-red-600 animate-pulse shrink-0 flex items-center justify-center">
+                <Radio className="w-4 h-4 text-white" />
+              </div>
+              <div className="text-left min-w-0 pr-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black uppercase text-red-400">EN VIVO EN XG</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+                </div>
+                <p className="text-xs font-bold text-white truncate max-w-[150px] sm:max-w-[200px]">
+                  {title || 'Tu transmisión en vivo'}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleStopLive}
+                  className="px-2.5 py-1 rounded-xl bg-red-600/90 hover:bg-red-600 text-white text-[11px] font-black uppercase tracking-wider shrink-0 transition-transform active:scale-95"
+                  title="Detener transmisión"
+                >
+                  Detener
+                </button>
+              </div>
+            </div>,
+            document.body
+          )
+        : null;
+    }
+    return null;
+  }
 
   const content = (
     <div
-      onClick={isLive ? undefined : onClose}
+      onClick={onClose}
       className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
     >
       <div
@@ -182,15 +219,34 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
               {isLive ? '🔴 Transmisión En Vivo Activa' : 'Re-transmitir VIVO'}
             </h3>
           </div>
-          {!isLive && (
+          <div className="flex items-center gap-2">
+            {isLive && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  showNotification({
+                    title: 'Directo en segundo plano',
+                    message: 'Tu transmisión sigue activa en XtremGen mientras navegas.',
+                    type: 'info',
+                  });
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all shadow-sm border border-white/10"
+                title="Volver a navegar por XtremGen manteniendo el directo"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Volver a XG</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white"
+              className="p-1.5 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+              title="Cerrar ventana (el directo se mantiene activo)"
             >
               <X className="w-5 h-5" />
             </button>
-          )}
+          </div>
         </div>
 
         {isLive ? (
@@ -243,16 +299,37 @@ export const LiveStreamModal: React.FC<LiveStreamModalProps> = ({
               </div>
             </div>
 
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={handleStopLive}
-              className="w-full !bg-red-600 hover:!bg-red-700 !text-white flex items-center justify-center gap-2 shadow-lg shadow-red-600/20"
-            >
-              <StopCircle className="w-4 h-4" />
-              Finalizar Re-transmisión
-            </Button>
+            {/* Action buttons: Volver a XG vs Finalizar */}
+            <div className="space-y-2 pt-2 border-t border-white/10">
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={() => {
+                  onClose();
+                  showNotification({
+                    title: 'Directo activo en segundo plano',
+                    message: 'Puedes seguir navegando. Tu transmisión está visible en el panel lateral y el carrusel.',
+                    type: 'info',
+                  });
+                }}
+                className="w-full !bg-white/15 hover:!bg-white/25 !text-white flex items-center justify-center gap-2 border border-white/20 font-black shadow-lg"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Volver a XtremGen (Mantener En Vivo)</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={handleStopLive}
+                className="w-full !bg-red-600/80 hover:!bg-red-600 !text-white flex items-center justify-center gap-2 text-xs font-bold"
+              >
+                <StopCircle className="w-3.5 h-3.5" />
+                <span>Finalizar y Detener Transmisión</span>
+              </Button>
+            </div>
           </div>
         ) : (
           /* CONFIGURATION SCREEN */
